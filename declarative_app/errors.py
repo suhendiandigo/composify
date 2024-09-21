@@ -1,4 +1,4 @@
-from typing import Any
+from typing import Any, TypeAlias
 
 
 class ContainerError(Exception):
@@ -57,18 +57,32 @@ class ResolverError(Exception):
     pass
 
 
-class FailedToResolveError(ResolverError):
-    def __init__(
-        self, type_: type, traces: tuple[tuple[str, str, type], ...]
-    ) -> None:
+class TypeConstructionResolutionError(ResolverError):
+    pass
+
+
+Trace: TypeAlias = tuple[str, str, type]
+Traces: TypeAlias = tuple[Trace, ...]
+
+
+class FailedToResolveError(TypeConstructionResolutionError):
+    def __init__(self, type_: type, traces: Traces) -> None:
         self.type_ = type_
         self.traces = traces
         super().__init__(f"Failed to resolve for {self.type_!r}")
 
 
-class NoConstructPlanError(ResolverError):
-    def __init__(self, type_: type) -> None:
+class NoConstructPlanError(TypeConstructionResolutionError):
+    def __init__(self, type_: type, traces: Traces) -> None:
         self.type_ = type_
+        self.traces = traces
         super().__init__(
             f"Unable to find construction plan for {self.type_!r}"
         )
+
+
+class CyclicDependencyError(TypeConstructionResolutionError):
+    def __init__(self, type_: type, traces: Traces) -> None:
+        self.type_ = type_
+        self.traces = traces
+        super().__init__(f"Cyclic dependency found for {self.type_!r}")

@@ -15,7 +15,7 @@ from typing import (
 
 from declarative_app.container import Container
 from declarative_app.errors import (
-    FailedToResolveError,
+    CyclicDependencyError,
     InstanceNotFoundError,
     NoConstructPlanError,
 )
@@ -66,14 +66,9 @@ class Tracing:
     traces: tuple[tuple[ConstructorName, ConstructorResultName, type], ...]
 
     def chain(
-        self,
-        resolver_name: ConstructorName,
-        dependency: ConstructorResultName,
-        dependency_type: type,
+        self, trace: tuple[ConstructorName, ConstructorResultName, type]
     ) -> "Tracing":
-        return Tracing(
-            traces=(*self.traces, (resolver_name, dependency, dependency_type))
-        )
+        return Tracing(traces=(*self.traces, trace))
 
 
 class ConstructionPlanFactory(Protocol):
@@ -98,10 +93,10 @@ class ContainerConstructionPlanFactory(ConstructionPlanFactory):
 
     def create_plan(self, type_: type[T]) -> Iterable[ConstructionPlan[T]]:
         try:
-            val = self._container.get(type_)
+            wrapper = self._container.get_wrapper(type_)
             yield ConstructionPlan(
-                source=f"{self._container}",
-                constructor=Static(val),
+                source=f"{self._container}::{wrapper.name}",
+                constructor=Static(wrapper.instance),
                 is_async=False,
                 output_type=type_,
                 dependencies={},
@@ -123,18 +118,14 @@ class ConstructRuleConstructionPlanFactory(ConstructionPlanFactory):
         rules = self._rules.get(type_)
         if not rules:
             return
-        errors = []
         for rule in rules:
-            try:
-                yield ConstructionPlan(
-                    source=f"rule::{rule.cannonical_name}",
-                    constructor=rule.function,
-                    is_async=rule.is_async,
-                    output_type=type_,
-                    dependencies=rule.parameter_types,
-                )
-            except NoConstructPlanError as exc:
-                errors.append(exc)
+            yield ConstructionPlan(
+                source=f"rule::{rule.cannonical_name}",
+                constructor=rule.function,
+                is_async=rule.is_async,
+                output_type=type_,
+                dependencies=rule.parameter_types,
+            )
 
 
 def _permutate_parameters(
@@ -186,9 +177,15 @@ class ConstructionResolver:
     ) -> Iterable[Construction[T]]:
         plans = self._create_plans(target)
         if not plans:
-            raise FailedToResolveError(target, trace.traces)
+            raise NoConstructPlanError(target, trace.traces)
+        errors = []
+        constructions = []
         for plan in plans:
-            tracing = trace.chain(plan.source, name, target)
+            curr_trace = plan.source, name, target
+            tracing = trace.chain(curr_trace)
+            if curr_trace in trace.traces:
+                errors.append(CyclicDependencyError(target, tracing.traces))
+                continue
             if plan.dependencies:
                 parameters: dict[str, tuple[Construction, ...]] = {}
                 for dependency_name, dependency in plan.dependencies.items():
@@ -198,23 +195,30 @@ class ConstructionResolver:
                 for parameter_permutation, level in permutate_parameters(
                     parameters
                 ):
-                    yield Construction(
+                    constructions.append(
+                        Construction(
+                            source=plan.source,
+                            constructor=plan.constructor,
+                            is_async=plan.is_async,
+                            output_type=plan.output_type,
+                            parameters=parameter_permutation,
+                            chain_length=level,
+                        )
+                    )
+            else:
+                constructions.append(
+                    Construction(
                         source=plan.source,
                         constructor=plan.constructor,
                         is_async=plan.is_async,
                         output_type=plan.output_type,
-                        parameters=parameter_permutation,
-                        chain_length=level,
+                        parameters={},
+                        chain_length=0,
                     )
-            else:
-                yield Construction(
-                    source=plan.source,
-                    constructor=plan.constructor,
-                    is_async=plan.is_async,
-                    output_type=plan.output_type,
-                    parameters={},
-                    chain_length=0,
                 )
+        if not constructions and errors:
+            raise errors[0]
+        yield from constructions
 
     def resolve(self, target: type[T]) -> Iterable[Construction[T]]:
         tracing = Tracing(tuple())

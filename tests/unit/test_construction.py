@@ -1,4 +1,5 @@
 import asyncio
+from typing import Annotated
 
 import pytest
 from fixture.example_complex_rules import Param, Result, rules
@@ -49,3 +50,20 @@ async def test_concurrent_construct(container):
         assert isinstance(result, Result)
         assert result == results[0]
         assert result.value == 25
+
+
+@pytest.mark.asyncio_cooperative
+async def test_annotated_construct(container):
+    resolver = ConstructionResolver(
+        factories=[
+            ContainerConstructionPlanFactory(container),
+            ConstructRuleConstructionPlanFactory(RuleRegistry(rules)),
+        ]
+    )
+    container.add(Param(5))
+    plans = list(resolver.resolve(Annotated[Result, 1]))
+    constructor = Constructor()
+    plan = plans[0]
+    result = await constructor.construct(plan)
+    assert isinstance(result, Result)
+    assert result.value == -5

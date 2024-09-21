@@ -1,6 +1,7 @@
 import asyncio
 import inspect
 from dataclasses import dataclass
+from functools import partial, wraps
 from types import FrameType, ModuleType
 from typing import (
     Any,
@@ -26,6 +27,8 @@ P = ParamSpec("P")
 SyncRuleFunctionType: TypeAlias = Callable[P, T]
 AsyncRuleFunctionType: TypeAlias = Callable[P, Awaitable[T]]
 RuleFunctionType: TypeAlias = SyncRuleFunctionType | AsyncRuleFunctionType
+
+F = TypeVar("F", bound=RuleFunctionType)
 
 RULE_ATTR = "__rule__"
 
@@ -76,14 +79,18 @@ def _ensure_type_annotation(
 ) -> Type:
     if type_annotation is None:
         raise raise_type(f"{name} is missing a type annotation.")
-    if not isinstance(type_annotation, type):
-        raise raise_type(
-            f"The annotation for {name} must be a type, got {type_annotation} of type {type(type_annotation)}."
-        )
+    # if not isinstance(type_annotation, type):
+    #     raise raise_type(
+    #         f"The annotation for {name} must be a type, got {type_annotation} of type {type(type_annotation)}."
+    #     )
     return type_annotation
 
 
-def rule_decorator(func):
+def rule_decorator(
+    func: F,
+    *,
+    return_rule: bool = False,
+) -> F | ConstructRule:
     func_params = inspect.signature(func).parameters
     func_id = f"@rule {func.__module__}:{func.__name__}"
     type_hints = get_type_hints(func, include_extras=True)
@@ -105,24 +112,28 @@ def rule_decorator(func):
         ".<locals>", ""
     )
 
+    rule = _make_rule(
+        func,
+        is_async=asyncio.iscoroutinefunction(func),
+        canonical_name=effective_name,
+        output_type=return_type,
+        parameter_types=parameter_types,
+    )
     setattr(
         func,
         RULE_ATTR,
-        _make_rule(
-            func,
-            is_async=asyncio.iscoroutinefunction(func),
-            canonical_name=effective_name,
-            output_type=return_type,
-            parameter_types=parameter_types,
-        ),
+        rule,
     )
+    if return_rule:
+        return rule
     return func
 
 
-def rule(f: RuleFunctionType | None = None):
+@wraps(rule_decorator)
+def rule(f: RuleFunctionType | None = None, /, **kwargs):
     if f is None:
-        return rule_decorator
-    return rule_decorator(f)
+        return partial(rule_decorator, **kwargs)
+    return rule_decorator(f, **kwargs)
 
 
 def as_rule(f: Any) -> ConstructRule | None:
@@ -149,11 +160,14 @@ def collect_rules(
                 else namespace
             )
             for item in mapping.values():
-                if not callable(item):
-                    continue
-                rule = getattr(item, RULE_ATTR, None)
-                if isinstance(rule, ConstructRule):
-                    yield rule
+                if isinstance(item, ConstructRule):
+                    yield item
+                else:
+                    if not callable(item):
+                        continue
+                    rule = getattr(item, RULE_ATTR, None)
+                    if isinstance(rule, ConstructRule):
+                        yield rule
 
     return list(iter_rules())
 

@@ -264,9 +264,22 @@ class Container:
 
     def get(self, type_: Type[E], default: Any = ...) -> E:
         """Get an object from the object registry."""
-        return self.get_by_type(type_, default)
+        origin = get_origin(type_)
+        if origin in ARRAY_TYPES:
+            wrapper_type = ARRAY_TYPES[origin]
+            args = get_args(type_)
+            return wrapper_type(self._get_all_of_type(args[0], default))
+        return self.get_wrapper(type_, default).instance
 
-    def get_by_type(self, type_: Type[E], default: Any = ...) -> E:
+    def get_wrapper(
+        self, type_: Type[E], default: Any = ...
+    ) -> InstanceWrapper[E]:
+        """Get an object from the object registry."""
+        return self._get_by_type(type_, default)
+
+    def _get_by_type(
+        self, type_: Type[E], default: Any = ...
+    ) -> InstanceWrapper[E]:
         """Get an object by their type from object registry.
         :param type_: The type of object to get. An array type such as `List[E]` or `Tuple[E]` are resolvable.
         :param default: The default value returned if the object of type is not found.
@@ -274,16 +287,12 @@ class Container:
         :return: An object of type.
         """
         origin = get_origin(type_)
-        if origin in ARRAY_TYPES:
-            wrapper_type = ARRAY_TYPES[origin]
-            args = get_args(type_)
-            return wrapper_type(self.get_all_of_type(args[0], default))
-        elif origin == Union:
+        if origin == Union:
             return self._get_union_by_type(type_, default)
 
         return self._get_single_by_type(type_, default)
 
-    def get_all_of_type(
+    def _get_all_of_type(
         self, type_: Type[E], default: Any = ...
     ) -> Iterable[E]:
         """Get all objects of a specific type.
@@ -294,7 +303,7 @@ class Container:
             args = get_args(type_)
             result: list[E] = []
             for inner_type in args:
-                result.extend(self.get_all_of_type(inner_type))
+                result.extend(self._get_all_of_type(inner_type))
             return tuple(result)
         if type_ in self._mapping_by_type:
             wrappers = self._mapping_by_type[type_]
@@ -303,7 +312,9 @@ class Container:
             return default
         return tuple()
 
-    def _get_union_by_type(self, type_: Type[E], default: Any = ...) -> E:
+    def _get_union_by_type(
+        self, type_: Type[E], default: Any = ...
+    ) -> InstanceWrapper[E]:
         args = get_args(type_)
         for inner_type in args:
             try:
@@ -314,7 +325,9 @@ class Container:
             return default
         raise InstanceOfTypeNotFoundError(type_)
 
-    def _get_single_by_type(self, type_: Type[E], default: Any = ...) -> E:
+    def _get_single_by_type(
+        self, type_: Type[E], default: Any = ...
+    ) -> InstanceWrapper[E]:
         metadata = get_metadata(type_)
         names = []
         for meta in metadata:
@@ -323,7 +336,7 @@ class Container:
         if names:
             for qualifier in names:
                 if qualifier in self._mapping_by_name:
-                    return self._mapping_by_name[qualifier].instance
+                    return self._mapping_by_name[qualifier]
             raise InstanceOfTypeNotFoundError(type_)
 
         if type_ in self._mapping_by_type:
@@ -332,21 +345,21 @@ class Container:
                 wrapper = wrappers[0]
                 if names:
                     if wrapper.name in names:
-                        return wrapper.instance
+                        return wrapper
                 else:
-                    return wrapper.instance
+                    return wrapper
             elif len(wrappers) > 1:
                 if names:
                     filtered = list(
                         filter(lambda x: x.name in names, wrappers)
                     )
                     if len(filtered) == 1:
-                        return filtered[0].instance
+                        return filtered[0]
                     elif len(filtered) > 1:
                         raise AmbiguousInstanceError(type_, tuple(filtered))
                 else:
                     if wrappers.primary is not None:
-                        return wrappers.primary.instance
+                        return wrappers.primary
                     raise AmbiguousInstanceError(type_, tuple(wrappers))
         if default is not ...:
             return default

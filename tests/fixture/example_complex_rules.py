@@ -1,4 +1,5 @@
 from dataclasses import dataclass
+from typing import Annotated
 
 from declarative_app.rules import collect_rules, rule
 
@@ -36,6 +37,11 @@ def infer_param_2(param: Param) -> Param2:
 @rule
 def create_result(param1: Param1, param2: Param2) -> Result:
     return Result(param1.value + param2.value)
+
+
+@rule
+def create_result_2(param1: Param1, param2: Param2) -> Annotated[Result, 1]:
+    return Result(param1.value - param2.value)
 
 
 DEFAULT_VALUE = 1
