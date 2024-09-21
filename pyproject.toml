@@ -1,0 +1,39 @@
+[project]
+name = "declarative_app"
+requires-python = ">=3.9"
+dynamic = ["version"]
+readme = "README.md"
+authors = [
+    {name = "Suhendi Andigo", email = "suhendiandigo@gmail.com"},
+]
+maintainers = [
+  {name = "Suhendi Andigo", email = "suhendiandigo@gmail.com"},
+]
+version = "0.1.0"
+description = "Library to build python apps declaratively"
+dependencies = []
+license = {text = "MIT"}
+
+[build-system]
+requires = ["pdm-backend"]
+build-backend = "pdm.backend"
+
+[tool.pdm]
+distribution = true
+
+[tool.pdm.dev-dependencies]
+dev = [
+    "pre-commit>=3.8.0",
+    "pytest>=8.3.3",
+    "pytest-asyncio-cooperative>=0.37.0",
+]
+
+[tool.pytest.ini_options]
+asyncio_mode = "strict" 
+pythonpath = [
+  ".",
+  "tests",
+]
+testpaths = [
+    "tests/unit",
+]

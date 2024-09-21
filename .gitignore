@@ -2,6 +2,9 @@
 __pycache__
 *.pyc
 
+# Package Manager
+.pdm-python
+
 # Virtual Envs
 .venv/
 venv/
