@@ -28,6 +28,18 @@ dev = [
     "pytest-asyncio-cooperative>=0.37.0",
 ]
 
+[tool.black]
+line-length = 79
+
+[tool.isort]
+profile = "black"
+line_length = 79
+
+[tool.flake8]
+max-line-length = 80
+extend-select = "B950"
+extend-ignore = "E203,E501,E701"
+
 [tool.pytest.ini_options]
 asyncio_mode = "strict" 
 pythonpath = [
