@@ -59,7 +59,7 @@ class ResolverError(Exception):
 
 class FailedToResolveError(ResolverError):
     def __init__(
-        self, type_: type, traces: tuple[tuple[str, str], ...]
+        self, type_: type, traces: tuple[tuple[str, str, type], ...]
     ) -> None:
         self.type_ = type_
         self.traces = traces
