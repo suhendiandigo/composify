@@ -3,6 +3,10 @@ repos:
   rev: 2.18.2
   hooks:
     - id: pdm-lock-check
+- repo: https://github.com/hadialqattan/pycln
+  rev: v2.4.0
+  hooks:
+    - id: pycln
 - repo: https://github.com/PyCQA/isort
   rev: 5.13.2
   hooks:
@@ -16,7 +20,3 @@ repos:
   hooks:
     - id: flake8
       additional_dependencies: [Flake8-pyproject]
-- repo: https://github.com/hadialqattan/pycln
-  rev: v2.4.0
-  hooks:
-    - id: pycln
