@@ -1,7 +1,7 @@
 from typing import Annotated
 
 from fixture.example_rules import Param, Result
-from pytest import fixture, raises
+from pytest import raises
 
 from declarative_app.container import Container
 from declarative_app.errors import (
@@ -11,11 +11,6 @@ from declarative_app.errors import (
     MultiplePrimaryInstanceError,
 )
 from declarative_app.metadata import Name
-
-
-@fixture(scope="function")
-def container() -> Container:
-    return Container()
 
 
 def test_add(container: Container):

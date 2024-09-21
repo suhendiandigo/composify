@@ -51,3 +51,24 @@ class MultiplePrimaryInstanceError(InstanceError):
         super().__init__(
             f"New primary '{to_add}' is conflicting with existing primary '{existing}'"
         )
+
+
+class ResolverError(Exception):
+    pass
+
+
+class FailedToResolveError(ResolverError):
+    def __init__(
+        self, type_: type, traces: tuple[tuple[str, str], ...]
+    ) -> None:
+        self.type_ = type_
+        self.traces = traces
+        super().__init__(f"Failed to resolve for {self.type_!r}")
+
+
+class NoConstructPlanError(ResolverError):
+    def __init__(self, type_: type) -> None:
+        self.type_ = type_
+        super().__init__(
+            f"Unable to find construction plan for {self.type_!r}"
+        )

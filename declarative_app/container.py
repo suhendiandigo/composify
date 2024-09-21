@@ -17,7 +17,7 @@ from typing import (  # type: ignore[attr-defined]
     get_origin,
 )
 
-from declarative_app.metadata import Name
+from declarative_app.metadata import Name, get_metadata
 
 from .errors import (
     AmbiguousInstanceError,
@@ -162,14 +162,18 @@ def _resolve_instance_name(value: Any):
 
 
 class Container:
-    __slots__ = ("_mapping_by_type", "_mapping_by_name")
+    __slots__ = ("_name", "_mapping_by_type", "_mapping_by_name")
 
     _mapping_by_type: dict[Type, WrapperGroup]
     _mapping_by_name: dict[str, InstanceWrapper]
 
-    def __init__(self):
+    def __init__(self, name: str | None = None):
+        self._name = name or hex(self.__hash__())
         self._mapping_by_type = {}
         self._mapping_by_name = {}
+
+    def __str__(self) -> str:
+        return f"container::{self._name}"
 
     def add(
         self,
@@ -311,13 +315,11 @@ class Container:
         raise InstanceOfTypeNotFoundError(type_)
 
     def _get_single_by_type(self, type_: Type[E], default: Any = ...) -> E:
-        metadata: tuple[Any, ...] = getattr(type_, "__metadata__", tuple())
+        metadata = get_metadata(type_)
         names = []
         for meta in metadata:
             if isinstance(meta, Name):
                 names.append(meta.name)
-        names = set(names)
-
         if names:
             for qualifier in names:
                 if qualifier in self._mapping_by_name:

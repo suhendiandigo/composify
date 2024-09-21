@@ -7,7 +7,7 @@ from fixture.example_rules import (
     rules,
 )
 
-from declarative_app.rules import get_rule_metadata
+from declarative_app.rules import as_rule
 
 
 def test_collect_rules():
@@ -15,7 +15,7 @@ def test_collect_rules():
 
 
 def test_rule_async_metadata():
-    rule = get_rule_metadata(example_async_rule)
+    rule = as_rule(example_async_rule)
     assert rule.is_async
     assert rule.function == example_async_rule
     assert rule.output_type == Result
@@ -23,7 +23,7 @@ def test_rule_async_metadata():
 
 
 def test_rule_sync_metadata():
-    rule = get_rule_metadata(example_sync_rule)
+    rule = as_rule(example_sync_rule)
     assert not rule.is_async
     assert rule.function == example_sync_rule
     assert rule.output_type == Result

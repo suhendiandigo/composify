@@ -6,6 +6,7 @@ from typing import (
     Any,
     Awaitable,
     Callable,
+    Generic,
     Iterable,
     Mapping,
     ParamSpec,
@@ -16,31 +17,26 @@ from typing import (
 
 from typing_extensions import TypeAlias
 
-__all__ = ["rule", "get_rule_metadata"]
+__all__ = ["rule", "as_rule"]
 
 
 T = TypeVar("T")
 P = ParamSpec("P")
 
-
 SyncRuleFunctionType: TypeAlias = Callable[P, T]
 AsyncRuleFunctionType: TypeAlias = Callable[P, Awaitable[T]]
 RuleFunctionType: TypeAlias = SyncRuleFunctionType | AsyncRuleFunctionType
 
-F = TypeVar("F", bound=RuleFunctionType)
 RULE_ATTR = "__rule__"
 
 
 @dataclass(frozen=True)
-class ConstructRule:
+class ConstructRule(Generic[T]):
     function: RuleFunctionType
     is_async: bool
     cannonical_name: str
-    output_type: Type
-    parameter_types: Mapping[str, Type]
-
-    def __call__(self, *args, **kwargs):
-        return self.function(*args, **kwargs)
+    output_type: type[T]
+    parameter_types: Mapping[str, type]
 
 
 def _make_rule(
@@ -90,7 +86,7 @@ def _ensure_type_annotation(
 def rule_decorator(func):
     func_params = inspect.signature(func).parameters
     func_id = f"@rule {func.__module__}:{func.__name__}"
-    type_hints = get_type_hints(func)
+    type_hints = get_type_hints(func, include_extras=True)
     return_type = _ensure_type_annotation(
         type_annotation=type_hints.get("return"),
         name=f"{func_id} return",
@@ -129,7 +125,7 @@ def rule(f: RuleFunctionType | None = None):
     return rule_decorator(f)
 
 
-def get_rule_metadata(f: Any) -> ConstructRule | None:
+def as_rule(f: Any) -> ConstructRule | None:
     return getattr(f, RULE_ATTR, None)
 
 
@@ -160,3 +156,46 @@ def collect_rules(
                     yield rule
 
     return list(iter_rules())
+
+
+class RuleError(Exception):
+    pass
+
+
+class RuleSignatureConflictError(RuleError):
+    def __init__(self, to_add: ConstructRule, existing: ConstructRule) -> None:
+        self.to_add = to_add
+        self.existing = existing
+        super().__init__(
+            f"Rule {to_add!r} conflict with existing rule {existing!r}"
+        )
+
+
+class RuleRegistry:
+
+    __slots__ = "_rules"
+
+    _rules: dict[type, list[ConstructRule]]
+
+    def __init__(self, rules: Iterable[ConstructRule]) -> None:
+        self._rules = {}
+        for rule in rules:
+            self.register_rule(rule)
+
+    def register_rule(self, rule: ConstructRule) -> None:
+        type_ = rule.output_type
+        if type_ in self._rules:
+            rules = self._rules[type_]
+            for _rule in rules:
+                if _rule.parameter_types == rule.parameter_types:
+                    raise RuleSignatureConflictError(rule, _rule)
+            rules.append(rule)
+        else:
+            self._rules[type_] = [rule]
+
+    def register_rules(self, rules: Iterable[ConstructRule]) -> None:
+        for rule in rules:
+            self.register_rule(rule)
+
+    def get(self, type_: type[T]) -> list[ConstructRule[T]] | None:
+        return self._rules.get(type_, None)
