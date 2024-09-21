@@ -40,7 +40,7 @@ _ConstructorFunction: TypeAlias = (
 
 @dataclass(frozen=True)
 class ConstructionPlan(Generic[T]):
-    name: str
+    source: str
     constructor: _ConstructorFunction[T]
     is_async: bool
     output_type: type[T]
@@ -49,7 +49,7 @@ class ConstructionPlan(Generic[T]):
 
 @dataclass(frozen=True)
 class Construction(Generic[T]):
-    name: str = field(hash=False)
+    source: str = field(hash=False)
     constructor: _ConstructorFunction[T]
     is_async: bool = field(hash=False)
     output_type: type[T] = field(hash=False)
@@ -100,7 +100,7 @@ class ContainerConstructionPlanFactory(ConstructionPlanFactory):
         try:
             val = self._container.get(type_)
             yield ConstructionPlan(
-                name=f"{self._container}",
+                source=f"{self._container}",
                 constructor=Static(val),
                 is_async=False,
                 output_type=type_,
@@ -127,7 +127,7 @@ class ConstructRuleConstructionPlanFactory(ConstructionPlanFactory):
         for rule in rules:
             try:
                 yield ConstructionPlan(
-                    name=f"rule::{rule.cannonical_name}",
+                    source=f"rule::{rule.cannonical_name}",
                     constructor=rule.function,
                     is_async=rule.is_async,
                     output_type=type_,
@@ -188,7 +188,7 @@ class ConstructionResolver:
         if not plans:
             raise FailedToResolveError(target, trace.traces)
         for plan in plans:
-            tracing = trace.chain(plan.name, name, target)
+            tracing = trace.chain(plan.source, name, target)
             if plan.dependencies:
                 parameters: dict[str, tuple[Construction, ...]] = {}
                 for dependency_name, dependency in plan.dependencies.items():
@@ -199,7 +199,7 @@ class ConstructionResolver:
                     parameters
                 ):
                     yield Construction(
-                        name=plan.name,
+                        source=plan.source,
                         constructor=plan.constructor,
                         is_async=plan.is_async,
                         output_type=plan.output_type,
@@ -208,7 +208,7 @@ class ConstructionResolver:
                     )
             else:
                 yield Construction(
-                    name=plan.name,
+                    source=plan.source,
                     constructor=plan.constructor,
                     is_async=plan.is_async,
                     output_type=plan.output_type,
@@ -228,7 +228,7 @@ def _format_construction_string(
     name: str, construction: Construction, indent: int, level: int
 ) -> str:
     indent_str = " " * (level * indent)
-    result = f"{indent_str}{name + ": " if name else ''}{construction.output_type!s} <- {construction.name}"
+    result = f"{indent_str}{name + ": " if name else ''}{construction.output_type!s} <- {construction.source}"
     for parameter_name, parameter in construction.parameters.items():
         result += "\n" + _format_construction_string(
             parameter_name, parameter, indent, level + 1
