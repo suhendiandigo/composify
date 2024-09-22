@@ -1,27 +1,27 @@
 from .attributes import (
-    AttributeCollection,
+    AttributeSet,
     BaseAttributeMetadata,
     Name,
     get_attributes,
 )
-from .base import BaseMetadata, MetadataCollection, get_metadata
+from .base import BaseMetadata, MetadataSet, get_metadata
 from .qualifiers import (
     BaseQualifierMetadata,
-    QualiferCollection,
+    QualifierSet,
     Variance,
     get_qualifiers,
 )
 
 __all__ = [
     "BaseMetadata",
-    "MetadataCollection",
+    "MetadataSet",
     "get_metadata",
     "BaseAttributeMetadata",
-    "AttributeCollection",
+    "AttributeSet",
     "get_attributes",
     "Name",
     "BaseQualifierMetadata",
-    "QualiferCollection",
+    "QualifierSet",
     "get_qualifiers",
     "Variance",
 ]

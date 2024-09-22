@@ -7,7 +7,6 @@ from typing import (
     Any,
     Awaitable,
     Callable,
-    FrozenSet,
     Generic,
     Iterable,
     Mapping,
@@ -18,7 +17,7 @@ from typing import (
 )
 
 from declarative_app.metadata import BaseAttributeMetadata, get_attributes
-from declarative_app.metadata.attributes import AttributeCollection
+from declarative_app.metadata.attributes import AttributeSet
 from declarative_app.metadata.qualifiers import VarianceType
 from declarative_app.registry import (
     AttributeFilterer,
@@ -52,7 +51,7 @@ class ConstructRule(Entry, Generic[T]):
     is_async: bool
     cannonical_name: str
     output_type: type[T]
-    output_attributes: FrozenSet[BaseAttributeMetadata]
+    output_attributes: AttributeSet
     parameter_types: ParameterTypes
 
     @property
@@ -229,7 +228,7 @@ class DuplicateRuleError(RuleError):
 class RuleAttributeFilterer(AttributeFilterer[ConstructRule[T]]):
 
     def match_entry_attributes(
-        self, entry: ConstructRule[T], attributes: AttributeCollection
+        self, entry: ConstructRule[T], attributes: AttributeSet
     ) -> bool:
         return entry.output_attributes.issuperset(attributes)
 
@@ -263,5 +262,5 @@ class RuleRegistry:
     def register_rules(self, rules: Iterable[ConstructRule]) -> None:
         self._rules.add_entries(rules)
 
-    def get(self, target: type[T]) -> Iterable[ConstructRule[T]] | None:
+    def get(self, target: type[T]) -> Iterable[ConstructRule[T]]:
         return self._rules.get(target)

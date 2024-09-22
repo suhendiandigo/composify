@@ -1,23 +1,24 @@
 from collections import abc
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 from typing import (  # type: ignore[attr-defined]
     Any,
     Generic,
     Iterable,
     Type,
     TypeVar,
-    Union,
-    get_args,
-    get_origin,
 )
 
 from declarative_app.metadata import Name, get_attributes
-from declarative_app.metadata.qualifiers import (
-    VarianceType,
-    get_qualifiers,
-    resolve_variance,
+from declarative_app.metadata.attributes import AttributeSet, resolve_name
+from declarative_app.metadata.qualifiers import VarianceType
+from declarative_app.registry import (
+    AttributeFilterer,
+    Entry,
+    Key,
+    TypedRegistry,
+    UniqueEntryValidator,
 )
-from declarative_app.types import get_type, resolve_base_types
+from declarative_app.types import get_type
 
 from .errors import (
     AmbiguousInstanceError,
@@ -39,50 +40,23 @@ ARRAY_TYPES = {
 
 
 @dataclass(frozen=True)
-class InstanceWrapper(Generic[E]):
+class InstanceWrapper(Entry, Generic[E]):
     instance: E
     instance_type: Type[E]
-    resolved_types: tuple[type, ...]
-    name: str
+    instance_name: str
+    attributes: AttributeSet
     is_primary: bool
+
+    @property
+    def key(self) -> Key:
+        return self.instance_type
+
+    @property
+    def name(self) -> str:
+        return self.instance_name
 
     def __repr__(self) -> str:
         return f"Instance(name={self.name}, value={self.instance!r})"
-
-
-@dataclass()
-class WrapperGroup(Generic[E]):
-    elements: list[InstanceWrapper[E]] = field(default_factory=list)
-    primary: InstanceWrapper[E] | None = None
-
-    def add(self, instance: InstanceWrapper[E]) -> None:
-        self.elements.append(instance)
-        if instance.is_primary:
-            if self.primary is not None:
-                raise MultiplePrimaryInstanceError(instance, self.primary)
-            self.primary = instance
-
-    def remove(self, instance: InstanceWrapper[E]) -> None:
-        self.elements.remove(instance)
-
-    def get_wrapper(self, instance: E) -> InstanceWrapper[E] | None:
-        for e in self.elements:
-            if e.instance is instance:
-                return e
-        return None
-
-    @property
-    def is_empty(self) -> bool:
-        return len(self.elements) == 0
-
-    def __iter__(self):
-        return iter(self.elements)
-
-    def __len__(self):
-        return len(self.elements)
-
-    def __getitem__(self, key) -> InstanceWrapper:
-        return self.elements[key]
 
 
 def _resolve_instance_name(value: Any):
@@ -93,6 +67,28 @@ def _resolve_instance_name(value: Any):
     )
 
 
+class ContainerAttributeFilterer(AttributeFilterer[InstanceWrapper]):
+
+    def match_entry_attributes(
+        self, entry: InstanceWrapper, attributes: AttributeSet
+    ) -> bool:
+        return entry.attributes.issuperset(attributes)
+
+
+class ContainerUniqueEntryValidator(UniqueEntryValidator[InstanceWrapper]):
+
+    def validate_uniqueness(
+        self, entry: InstanceWrapper, others: Iterable[InstanceWrapper]
+    ) -> None:
+        for other in others:
+            if entry.instance_name == other.instance_name:
+                raise ConflictingInstanceNameError(
+                    entry.instance_name, entry, other
+                )
+            if entry.is_primary and other.is_primary:
+                raise MultiplePrimaryInstanceError(entry, other)
+
+
 class Container:
     __slots__ = (
         "_name",
@@ -101,7 +97,7 @@ class Container:
         "_default_variance",
     )
 
-    _mapping_by_type: dict[Type, WrapperGroup]
+    _mapping_by_type: TypedRegistry[InstanceWrapper]
     _mapping_by_name: dict[str, InstanceWrapper]
 
     def __init__(
@@ -110,7 +106,11 @@ class Container:
         default_variance: VarianceType = "covariant",
     ):
         self._name = name or hex(self.__hash__())
-        self._mapping_by_type = {}
+        self._mapping_by_type = TypedRegistry(
+            default_variance=default_variance,
+            attribute_filterer=ContainerAttributeFilterer(),
+            unique_validator=ContainerUniqueEntryValidator(),
+        )
         self._mapping_by_name = {}
         self._default_variance = default_variance
 
@@ -130,7 +130,11 @@ class Container:
         :return:
         """
         type_ = instance.__class__
-        resolved_types = tuple(reversed(resolve_base_types(type_)))
+
+        attributes = get_attributes(type_)
+        instance_type = get_type(type_)
+
+        name = name or resolve_name(attributes)
 
         if name is None:
             i = 0
@@ -146,41 +150,27 @@ class Container:
 
         wrapper = InstanceWrapper(
             instance,
-            instance_type=type_,
-            resolved_types=resolved_types,
-            name=name,
+            instance_type=instance_type,
+            instance_name=name,
+            attributes=frozenset(tuple(attributes) + (Name(name),)),
             is_primary=is_primary,
         )
 
         self._mapping_by_name[name] = wrapper
-
-        for type_ in resolved_types:
-            if type_ in self._mapping_by_type:
-                group = self._mapping_by_type[type_]
-            else:
-                group = self._mapping_by_type[type_] = WrapperGroup()
-            group.add(wrapper)
+        self._mapping_by_type.add_entry(wrapper)
 
     def remove(self, instance: Any) -> None:
         """Remove an object from the object registry."""
-        resolved_types = resolve_base_types(instance.__class__)
-
-        self._remove_from_types(instance, resolved_types)
-
-    def _remove_from_types(self, instance: Any, types: Iterable[type]) -> None:
-        names = []
-        for type_ in types:
-            if type_ in self._mapping_by_type:
-                type_bucket = self._mapping_by_type[type_]
-                wrapper = type_bucket.get_wrapper(instance)
-                if wrapper is None:
-                    continue
-                names.append(wrapper.name)
-                type_bucket.remove(wrapper)
-                if type_bucket.is_empty:
-                    del self._mapping_by_type[type_]
-        for name in names:
-            del self._mapping_by_name[name]
+        type_ = get_type(instance.__class__)
+        wrappers = self._mapping_by_type.get(type_)
+        if wrappers:
+            wrapper = None
+            for wrapper in wrappers:
+                if wrapper.instance == instance:
+                    break
+            if wrapper is not None:
+                self._mapping_by_type.remove_entry(wrapper)
+                del self._mapping_by_name[wrapper.instance_name]
 
     def remove_by_name(self, name: str) -> None:
         try:
@@ -189,146 +179,39 @@ class Container:
             raise InstanceOfNameNotFoundError(name)
         del self._mapping_by_name[name]
 
-        resolved_types = resolve_base_types(wrapper.instance.__class__)
-        for type_ in resolved_types:
-            if type_ in self._mapping_by_type:
-                type_bucket = self._mapping_by_type[type_]
-                type_bucket.remove(wrapper)
-                if type_bucket.is_empty:
-                    del self._mapping_by_type[type_]
+        self._mapping_by_type.remove_entry(wrapper)
 
-    def __setitem__(self, key, value):
-        self.add(key, value)
+    def __setitem__(self, key: str, value: Any):
+        self.add(value, name=key)
 
-    def __getitem__(self, item):
+    def __getitem__(self, item: Type[E]) -> E | None:
         return self.get(item)
 
     def __delitem__(self, key):
         self.remove(key)
 
-    def get(self, type_: Type[E], default: Any = ...) -> E:
+    def get(self, type_: Type[E]) -> E | None:
         """Get an object from the object registry."""
-        origin = get_origin(type_)
-        if origin in ARRAY_TYPES:
-            wrapper_type = ARRAY_TYPES[origin]
-            args = get_args(type_)
-            return wrapper_type(self._get_all_of_type(args[0], default))
-        return self.get_wrapper(type_, default).instance
+        wrapper = self.get_wrapper(type_)
+        return wrapper.instance if wrapper else None
 
-    def get_wrapper(
-        self, type_: Type[E], default: Any = ...
-    ) -> InstanceWrapper[E]:
+    def get_wrapper(self, type_: Type[E]) -> InstanceWrapper[E]:
         """Get an object from the object registry."""
-        return self._get_by_type(type_, default)
-
-    def _get_by_type(
-        self, type_: Type[E], default: Any = ...
-    ) -> InstanceWrapper[E]:
-        """Get an object by their type from object registry.
-        :param type_: The type of object to get. An array type such as `List[E]` or `Tuple[E]` are resolvable.
-        :param default: The default value returned if the object of type is not found.
-        :raise ComponentNotFoundError: If object of type is not found and the type is not an iterable type.
-        :return: An object of type.
-        """
-        origin = get_origin(type_)
-        if origin == Union:
-            return self._get_union_by_type(type_, default)
-
-        return self._get_single_by_type(type_, default)
-
-    def _get_all_of_type(
-        self, type_: Type[E], default: Any = ...
-    ) -> Iterable[E]:
-        """Get all objects of a specific type.
-        :param type_: The type of object to get.
-        :param default: The default value returned if the object of type is not found.
-        :return: An iterable in the form of a tuple."""
-        if get_origin(type_) == Union:
-            args = get_args(type_)
-            result: list[E] = []
-            for inner_type in args:
-                result.extend(self._get_all_of_type(inner_type))
-            return tuple(result)
-        if type_ in self._mapping_by_type:
-            wrappers = self._mapping_by_type[type_]
-            return tuple(wrappers)
-        if default is not ...:
-            return default
-        return tuple()
-
-    def _get_union_by_type(
-        self, type_: Type[E], default: Any = ...
-    ) -> InstanceWrapper[E]:
-        args = get_args(type_)
-        for inner_type in args:
-            try:
-                return self._get_single_by_type(inner_type)
-            except InstanceOfTypeNotFoundError:
-                pass
-        if default is not ...:
-            return default
-        raise InstanceOfTypeNotFoundError(type_)
-
-    def _get_wrappers_for_type(
-        self, type_: type[E], variance: VarianceType
-    ) -> list[InstanceWrapper[E]]:
-        if variance == "invariant":
-            return list(
-                filter(
-                    lambda x: x.instance_type is type_,
-                    self._mapping_by_type.get(type_, []),
-                )
-            )
-        elif variance == "contravariant":
-            rules = set()
-            for parent_type in resolve_base_types(type_):
-                for rule in self._mapping_by_type.get(parent_type, tuple()):
-                    rules.add(rule)
-            return list(set(rules))
-        return list(self._mapping_by_type.get(type_, []))
-
-    def _get_single_by_type(
-        self, type_: Type[E], default: Any = ...
-    ) -> InstanceWrapper[E]:
-        attributes = get_attributes(type_)
-        qualifiers = get_qualifiers(type_)
-        type_ = get_type(type_)
-        names = []
-        for meta in attributes:
-            if isinstance(meta, Name):
-                names.append(meta.name)
-        if names:
-            for qualifier in names:
-                if qualifier in self._mapping_by_name:
-                    return self._mapping_by_name[qualifier]
+        wrappers = tuple(self._mapping_by_type.get(type_))
+        if not wrappers:
             raise InstanceOfTypeNotFoundError(type_)
-
-        variance = resolve_variance(qualifiers, self._default_variance)
-        wrappers = self._get_wrappers_for_type(type_, variance)
         if len(wrappers) == 1:
-            wrapper = wrappers[0]
-            if names:
-                if wrapper.name in names:
-                    return wrapper
-            else:
-                return wrapper
-        elif len(wrappers) > 1:
-            if names:
-                filtered = list(filter(lambda x: x.name in names, wrappers))
-                if len(filtered) == 1:
-                    return filtered[0]
-                elif len(filtered) > 1:
-                    raise AmbiguousInstanceError(type_, tuple(filtered))
-            else:
-                primary = next(
-                    iter(list(filter(lambda x: x.is_primary, wrappers))), None
-                )
-                if primary is not None:
-                    return primary
-                raise AmbiguousInstanceError(type_, tuple(wrappers))
-        if default is not ...:
-            return default
-        raise InstanceOfTypeNotFoundError(type_)
+            return wrappers[0]
+        primary = None
+        for wrapper in wrappers:
+            if wrapper.is_primary:
+                if primary is None:
+                    primary = wrapper
+                else:
+                    raise MultiplePrimaryInstanceError()
+        if primary:
+            return primary
+        raise AmbiguousInstanceError(type_, wrappers)
 
     def get_by_name(self, name: str, _: Type[E] | None = None) -> E:
         try:

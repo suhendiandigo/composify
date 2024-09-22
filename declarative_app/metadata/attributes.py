@@ -1,14 +1,14 @@
 from dataclasses import dataclass
 from typing import Any, TypeAlias
 
-from .base import SLOTS, BaseMetadata, MetadataCollection, _get_metadata
+from .base import SLOTS, BaseMetadata, MetadataSet, _get_metadata
 
 
 class BaseAttributeMetadata(BaseMetadata):
     pass
 
 
-AttributeCollection: TypeAlias = MetadataCollection[BaseAttributeMetadata]
+AttributeSet: TypeAlias = MetadataSet[BaseAttributeMetadata]
 
 
 @dataclass(frozen=True, **SLOTS)
@@ -20,5 +20,14 @@ def _is_attribute_instance(val: Any) -> bool:
     return isinstance(val, BaseAttributeMetadata)
 
 
-def get_attributes(type_: type) -> AttributeCollection:
+def get_attributes(type_: type) -> AttributeSet:
     return _get_metadata(type_, _is_attribute_instance)
+
+
+def resolve_name(
+    attributes: AttributeSet,
+) -> str | None:
+    for attribute in attributes:
+        if isinstance(attribute, Name):
+            return attribute.name
+    return None

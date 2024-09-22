@@ -3,10 +3,7 @@ from asyncio import Protocol
 from bisect import insort
 from typing import Generic, Iterable, TypeAlias, TypeVar
 
-from declarative_app.metadata.attributes import (
-    AttributeCollection,
-    get_attributes,
-)
+from declarative_app.metadata.attributes import AttributeSet, get_attributes
 from declarative_app.metadata.qualifiers import (
     VarianceType,
     get_qualifiers,
@@ -53,21 +50,26 @@ def _entry_ordering(entry: Entry) -> int:
 class AttributeFilterer(Protocol, Generic[E]):
 
     def match_entry_attributes(
-        self, entry: E, attributes: AttributeCollection
+        self, entry: E, attributes: AttributeSet
     ) -> bool:
         raise NotImplementedError()
 
 
-class EntryEqualityComparator(Protocol, Generic[E]):
+class UniqueEntryValidator(Protocol, Generic[E]):
 
-    def are_equal(self, entry: E, other: E) -> bool:
+    def validate_uniqueness(self, entry: E, others: Iterable[E]) -> None:
         raise NotImplementedError()
 
 
-class DefaultEntryEqualityComparator(EntryEqualityComparator[E]):
+class DefaultUniqueEntryValidator(UniqueEntryValidator[E]):
 
-    def are_equal(self, entry: E, other: E) -> bool:
-        return entry == other
+    def validate_uniqueness(self, entry: E, others: Iterable[E]) -> None:
+        for other in others:
+            if entry == other:
+                raise DuplicatedEntryError(entry, other)
+
+
+_EMPTY_RESULT: tuple = tuple()
 
 
 class TypedRegistry(Generic[E]):
@@ -76,7 +78,7 @@ class TypedRegistry(Generic[E]):
         "_entries",
         "_default_variance",
         "_attribute_filterer",
-        "_equality_comparator",
+        "_unique_validator",
     )
 
     _entries: dict[Key, list[E]]
@@ -87,26 +89,24 @@ class TypedRegistry(Generic[E]):
         *,
         default_variance: VarianceType = "covariant",
         attribute_filterer: AttributeFilterer | None = None,
-        equality_comparator: EntryEqualityComparator | None = None,
+        unique_validator: UniqueEntryValidator | None = None,
     ) -> None:
         self._entries = {}
         self._default_variance = default_variance
         self._attribute_filterer = attribute_filterer
-        self._equality_comparator = (
-            equality_comparator or DefaultEntryEqualityComparator()
+        self._unique_validator = (
+            unique_validator or DefaultUniqueEntryValidator()
         )
         if initial_entries is not None:
             self.add_entries(initial_entries)
 
-    def _compare_entries(self, entry: E, other: E) -> bool:
-        return self._equality_comparator.are_equal(entry, other)
+    def _validate_uniqueness(self, entry: E, others: Iterable[E]) -> None:
+        self._unique_validator.validate_uniqueness(entry, others)
 
     def _add_entry(self, key: Key, entry: E) -> None:
         if key in self._entries:
             rules = self._entries[key]
-            for _rule in rules:
-                if self._compare_entries(entry, _rule):
-                    raise DuplicatedEntryError(entry, _rule)
+            self._validate_uniqueness(entry, rules)
             # We want to keep the entries ordered
             # by how derived the key type is
             # we are prioritizing the less derived type
@@ -122,9 +122,20 @@ class TypedRegistry(Generic[E]):
         for rule in entries:
             self.add_entry(rule)
 
-    def _get_entries(self, key: Key, variance: VarianceType) -> list[E]:
+    def _remove_entry(self, key: Key, entry: E) -> None:
+        if key in self._entries:
+            rules = self._entries[key]
+            rules.remove(entry)
+            if not rules:
+                del self._entries[key]
+
+    def remove_entry(self, entry: E) -> None:
+        for type_ in resolve_base_types(entry.key):
+            self._remove_entry(type_, entry)
+
+    def _get_entries(self, key: Key, variance: VarianceType) -> tuple[E, ...]:
         if variance == "invariant":
-            return list(
+            return tuple(
                 filter(
                     lambda x: x.key is key,
                     self._entries.get(key, []),
@@ -135,34 +146,34 @@ class TypedRegistry(Generic[E]):
             for parent_type in resolve_base_types(key):
                 for entry in self._entries.get(parent_type, tuple()):
                     entries.add(entry)
-            return list(entries)
-        return self._entries.get(key, [])
+            return tuple(entries)
+        return tuple(self._entries.get(key, _EMPTY_RESULT))
 
     def _filter_entries_by_attributes(
-        self, key: Key, entries: Iterable[E]
-    ) -> Iterable[E]:
+        self, key: Key, entries: tuple[E, ...]
+    ) -> tuple[E, ...]:
         if self._attribute_filterer is None:
             return entries
         attributes = get_attributes(key)
         if attributes and (
-            filtered := [
+            filtered := tuple(
                 entry
                 for entry in entries
                 if self._attribute_filterer.match_entry_attributes(
                     entry, attributes
                 )
-            ]
+            )
         ):
             return filtered
         return entries
 
-    def get(self, key: Key) -> Iterable[E] | None:
+    def get(self, key: Key) -> tuple[E, ...]:
         type_ = get_type(key)
         qualifiers = get_qualifiers(key)
         variance = resolve_variance(qualifiers, self._default_variance)
 
-        entries: list[E] = self._get_entries(type_, variance)
+        entries: tuple[E, ...] = self._get_entries(type_, variance)
         if not entries:
-            return None
+            return _EMPTY_RESULT
 
         return self._filter_entries_by_attributes(key, entries)
