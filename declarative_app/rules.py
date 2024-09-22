@@ -1,6 +1,5 @@
 import asyncio
 import inspect
-from bisect import insort
 from dataclasses import dataclass
 from functools import partial, wraps
 from types import FrameType, ModuleType
@@ -19,12 +18,15 @@ from typing import (
 )
 
 from declarative_app.metadata import BaseAttributeMetadata, get_attributes
-from declarative_app.metadata.qualifiers import (
-    VarianceType,
-    get_qualifiers,
-    resolve_variance,
+from declarative_app.metadata.attributes import AttributeCollection
+from declarative_app.metadata.qualifiers import VarianceType
+from declarative_app.registry import (
+    AttributeFilterer,
+    Entry,
+    Key,
+    TypedRegistry,
 )
-from declarative_app.types import get_type, resolve_base_types
+from declarative_app.types import get_type
 
 __all__ = ["rule", "as_rule"]
 
@@ -45,13 +47,21 @@ ParameterTypes: TypeAlias = frozenset[ParameterType]
 
 
 @dataclass(frozen=True)
-class ConstructRule(Generic[T]):
+class ConstructRule(Entry, Generic[T]):
     function: RuleFunctionType
     is_async: bool
     cannonical_name: str
     output_type: type[T]
     output_attributes: FrozenSet[BaseAttributeMetadata]
     parameter_types: ParameterTypes
+
+    @property
+    def key(self) -> Key:
+        return self.output_type
+
+    @property
+    def name(self) -> str:
+        return self.cannonical_name
 
 
 def _make_rule(
@@ -216,87 +226,42 @@ class DuplicateRuleError(RuleError):
         )
 
 
-def _rule_ordering(rule: ConstructRule) -> int:
-    return len(rule.output_type.mro())
+class RuleAttributeFilterer(AttributeFilterer[ConstructRule[T]]):
+
+    def match_entry_attributes(
+        self, entry: ConstructRule[T], attributes: AttributeCollection
+    ) -> bool:
+        return entry.output_attributes.issuperset(attributes)
 
 
 class RuleRegistry:
 
     __slots__ = ("_rules", "_default_variance")
 
-    _rules: dict[type, list[ConstructRule]]
+    _rules: TypedRegistry[ConstructRule]
 
     def __init__(
         self,
-        rules: Iterable[ConstructRule],
+        rules: Iterable[ConstructRule] | None = None,
         default_variance: VarianceType = "covariant",
     ) -> None:
-        self._rules = {}
+        self._rules = TypedRegistry(
+            rules,
+            default_variance=default_variance,
+            attribute_filterer=RuleAttributeFilterer(),
+        )
         self._default_variance = default_variance
-        for rule in rules:
-            self.register_rule(rule)
 
-    def _register_rule_to_type(self, type_: type, rule: ConstructRule) -> None:
-        if type_ in self._rules:
-            rules = self._rules[type_]
-            for _rule in rules:
-                if _rule == rule:
-                    raise DuplicateRuleError(rule, _rule)
-                if (_rule.parameter_types == rule.parameter_types) and (
-                    _rule.output_attributes == rule.output_attributes
-                ):
-                    raise RuleSignatureConflictError(rule, _rule)
-            # We want to keep the rules ordered
-            # by how derived the output type is
-            # we are prioritizing the less derived type
-            insort(rules, rule, key=_rule_ordering)
-        else:
-            self._rules[type_] = [rule]
+    def _compare_entries(
+        self, entry: ConstructRule, other: ConstructRule
+    ) -> bool:
+        return entry == other
 
     def register_rule(self, rule: ConstructRule) -> None:
-        for type_ in resolve_base_types(rule.output_type):
-            self._register_rule_to_type(type_, rule)
+        self._rules.add_entry(rule)
 
     def register_rules(self, rules: Iterable[ConstructRule]) -> None:
-        for rule in rules:
-            self.register_rule(rule)
-
-    def _get_rule_for_type(
-        self, type_: type[T], variance: VarianceType
-    ) -> list[ConstructRule[T]]:
-        if variance == "invariant":
-            return list(
-                filter(
-                    lambda x: x.output_type is type_,
-                    self._rules.get(type_, []),
-                )
-            )
-        elif variance == "contravariant":
-            rules = set()
-            for parent_type in resolve_base_types(type_):
-                for rule in self._rules.get(parent_type, tuple()):
-                    rules.add(rule)
-            return list(rules)
-        return self._rules.get(type_, [])
+        self._rules.add_entries(rules)
 
     def get(self, target: type[T]) -> Iterable[ConstructRule[T]] | None:
-        type_ = get_type(target)
-        attributes = get_attributes(target)
-        qualifiers = get_qualifiers(target)
-
-        variance = resolve_variance(qualifiers, self._default_variance)
-
-        rules: list[ConstructRule[T]] = self._get_rule_for_type(
-            type_, variance
-        )
-        if not rules:
-            return None
-        if attributes and (
-            filtered := [
-                rule
-                for rule in rules
-                if rule.output_attributes.issuperset(attributes)
-            ]
-        ):
-            return filtered
-        return rules
+        return self._rules.get(target)
