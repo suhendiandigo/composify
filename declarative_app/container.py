@@ -12,7 +12,7 @@ from typing import (  # type: ignore[attr-defined]
 )
 
 from declarative_app.metadata import Name, get_attributes
-from declarative_app.types import resolve_base_types
+from declarative_app.types import get_type, resolve_base_types
 
 from .errors import (
     AmbiguousInstanceError,
@@ -254,7 +254,8 @@ class Container:
     def _get_single_by_type(
         self, type_: Type[E], default: Any = ...
     ) -> InstanceWrapper[E]:
-        type_, metadata = get_attributes(type_)
+        metadata = get_attributes(type_)
+        type_ = get_type(type_)
         names = []
         for meta in metadata:
             if isinstance(meta, Name):

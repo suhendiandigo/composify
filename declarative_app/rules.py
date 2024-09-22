@@ -18,6 +18,7 @@ from typing import (
 )
 
 from declarative_app.metadata import BaseAttributeMetadata, get_attributes
+from declarative_app.types import get_type
 
 __all__ = ["rule", "as_rule"]
 
@@ -103,7 +104,8 @@ def rule_decorator(
         name=f"{func_id} return",
         raise_type=MissingReturnTypeAnnotation,
     )
-    return_type, metadata = get_attributes(return_type)
+    metadata = get_attributes(return_type)
+    return_type = get_type(return_type)
 
     parameter_types = {
         parameter: _ensure_type_annotation(
@@ -220,16 +222,18 @@ class RuleRegistry:
         for rule in rules:
             self.register_rule(rule)
 
-    def get(self, type_: type[T]) -> Iterable[ConstructRule[T]] | None:
-        type_, metadata = get_attributes(type_)
+    def get(self, target: type[T]) -> Iterable[ConstructRule[T]] | None:
+        type_ = get_type(target)
+        attributes = get_attributes(target)
+
         rules: Iterable[ConstructRule[T]] = self._rules.get(type_, tuple())
         if not rules:
             return None
-        if metadata and (
+        if attributes and (
             filtered := [
                 rule
                 for rule in rules
-                if rule.output_attributes.issuperset(metadata)
+                if rule.output_attributes.issuperset(attributes)
             ]
         ):
             return filtered

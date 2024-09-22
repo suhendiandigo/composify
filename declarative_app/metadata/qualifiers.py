@@ -1,14 +1,14 @@
 from dataclasses import dataclass
 from typing import Any, Literal, TypeAlias
 
-from .base import SLOTS, BaseMetadata, TypeMetadataPair, _get_metadata
+from .base import SLOTS, BaseMetadata, MetadataCollection, _get_metadata
 
 
 class BaseQualifierMetadata(BaseMetadata):
     pass
 
 
-TypeQualifierPair: TypeAlias = TypeMetadataPair[BaseQualifierMetadata]
+QualiferCollection: TypeAlias = MetadataCollection[BaseQualifierMetadata]
 
 VarianceType = Literal["invariant", "covariant", "contravariant"]
 
@@ -27,5 +27,5 @@ def _is_qualifier_instance(val: Any) -> bool:
     return isinstance(val, BaseQualifierMetadata)
 
 
-def get_qualifiers(type_: type) -> TypeQualifierPair:
+def get_qualifiers(type_: type) -> QualiferCollection:
     return _get_metadata(type_, _is_qualifier_instance)

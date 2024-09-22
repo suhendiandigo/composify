@@ -1,5 +1,7 @@
 import itertools
 from typing import (  # type: ignore[attr-defined]
+    Annotated,
+    Any,
     ForwardRef,
     Generic,
     Protocol,
@@ -8,6 +10,13 @@ from typing import (  # type: ignore[attr-defined]
     get_args,
     get_origin,
 )
+
+
+def get_type(type_: Any) -> type:
+    origin = get_origin(type_)
+    if origin is Annotated:
+        type_ = get_args(type_)[0]
+    return type_
 
 
 def _expand_union_args_combinations(type_):
