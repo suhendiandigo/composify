@@ -78,8 +78,7 @@ class ConstructionPlanFactory(Protocol):
 
 
 class ContainerConstructionPlanFactory(ConstructionPlanFactory):
-
-    __slots__ = "_container"
+    __slots__ = ("_container",)
 
     def __init__(
         self,
@@ -106,8 +105,7 @@ class ContainerConstructionPlanFactory(ConstructionPlanFactory):
 
 
 class ConstructRuleConstructionPlanFactory(ConstructionPlanFactory):
-
-    __slots__ = "_rules"
+    __slots__ = ("_rules",)
 
     _rules: RuleRegistry
 
@@ -149,6 +147,11 @@ def permutate_parameters(
 ) -> tuple[tuple[dict[str, Construction], int], ...]:
     values = tuple(parameters.items())
     return _permutate_parameters(0, {}, values)
+
+
+@dataclass(frozen=True)
+class ResolutionContext:
+    pass
 
 
 class ConstructionResolver:

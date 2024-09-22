@@ -12,11 +12,12 @@ from typing import (
     Mapping,
     ParamSpec,
     Type,
+    TypeAlias,
     TypeVar,
     get_type_hints,
 )
 
-from typing_extensions import TypeAlias
+from declarative_app.metadata import BaseMetadata, get_metadata
 
 __all__ = ["rule", "as_rule"]
 
@@ -39,6 +40,7 @@ class ConstructRule(Generic[T]):
     is_async: bool
     cannonical_name: str
     output_type: type[T]
+    output_metadata: set[BaseMetadata]
     parameter_types: Mapping[str, type]
 
 
@@ -48,6 +50,7 @@ def _make_rule(
     is_async: bool,
     canonical_name: str,
     output_type: Type,
+    output_metadata: Iterable[BaseMetadata],
     parameter_types: Mapping[str, Type],
 ) -> ConstructRule:
     return ConstructRule(
@@ -55,6 +58,7 @@ def _make_rule(
         is_async=is_async,
         cannonical_name=canonical_name,
         output_type=output_type,
+        output_metadata=set(output_metadata),
         parameter_types=parameter_types,
     )
 
@@ -99,6 +103,7 @@ def rule_decorator(
         name=f"{func_id} return",
         raise_type=MissingReturnTypeAnnotation,
     )
+    return_type, metadata = get_metadata(return_type)
 
     parameter_types = {
         parameter: _ensure_type_annotation(
@@ -117,6 +122,7 @@ def rule_decorator(
         is_async=asyncio.iscoroutinefunction(func),
         canonical_name=effective_name,
         output_type=return_type,
+        output_metadata=metadata,
         parameter_types=parameter_types,
     )
     setattr(
@@ -198,10 +204,13 @@ class RuleRegistry:
 
     def register_rule(self, rule: ConstructRule) -> None:
         type_ = rule.output_type
+
         if type_ in self._rules:
             rules = self._rules[type_]
             for _rule in rules:
-                if _rule.parameter_types == rule.parameter_types:
+                if (_rule.parameter_types == rule.parameter_types) and (
+                    _rule.output_metadata == rule.output_metadata
+                ):
                     raise RuleSignatureConflictError(rule, _rule)
             rules.append(rule)
         else:
@@ -211,5 +220,17 @@ class RuleRegistry:
         for rule in rules:
             self.register_rule(rule)
 
-    def get(self, type_: type[T]) -> list[ConstructRule[T]] | None:
-        return self._rules.get(type_, None)
+    def get(self, type_: type[T]) -> Iterable[ConstructRule[T]] | None:
+        type_, metadata = get_metadata(type_)
+        rules: Iterable[ConstructRule[T]] = self._rules.get(type_, tuple())
+        if not rules:
+            return None
+        if metadata and (
+            filtered := [
+                rule
+                for rule in rules
+                if rule.output_metadata.issuperset(metadata)
+            ]
+        ):
+            return filtered
+        return rules

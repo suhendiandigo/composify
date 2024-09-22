@@ -328,7 +328,7 @@ class Container:
     def _get_single_by_type(
         self, type_: Type[E], default: Any = ...
     ) -> InstanceWrapper[E]:
-        metadata = get_metadata(type_)
+        type_, metadata = get_metadata(type_)
         names = []
         for meta in metadata:
             if isinstance(meta, Name):
