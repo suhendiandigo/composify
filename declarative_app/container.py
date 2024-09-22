@@ -1,23 +1,18 @@
-import itertools
 from collections import abc
 from dataclasses import dataclass, field
 from typing import (  # type: ignore[attr-defined]
     Any,
-    ForwardRef,
     Generic,
     Iterable,
-    List,
-    Protocol,
-    Set,
     Type,
     TypeVar,
     Union,
-    _eval_type,
     get_args,
     get_origin,
 )
 
-from declarative_app.metadata import Name, get_metadata
+from declarative_app.metadata import Name, get_attributes
+from declarative_app.types import resolve_base_types
 
 from .errors import (
     AmbiguousInstanceError,
@@ -36,75 +31,6 @@ ARRAY_TYPES = {
     abc.Collection: tuple,
     set: set,
 }
-
-
-def _expand_union_args_combinations(type_):
-    if get_origin(type_) == Union:
-        result = []
-        args = get_args(type_)
-        for comb in itertools.chain.from_iterable(
-            itertools.combinations(args, n + 1) for n in range(0, len(args))
-        ):
-            result.append(Union[comb])
-        return tuple(result)
-    return tuple([type_])
-
-
-def _expand_generic_args(type_) -> List[type]:
-    origin = get_origin(type_)
-    args = get_args(type_)
-    if not args:
-        return [type_]
-    result = []
-    for arg in itertools.chain.from_iterable(
-        _expand_union_args_combinations(arg) for arg in args
-    ):
-        result.append(origin[arg])
-    return result
-
-
-def _resolve_bases(type_: type) -> Set[type]:
-    """Resolve all bases of a type including generic bases."""
-    bases = set(type_.mro())
-    if hasattr(type_, "__orig_bases__"):
-        # See PEP 560: https://peps.python.org/pep-0560/#dynamic-class-creation-and-types-resolve-bases
-        # For generics support
-        orig_bases = type_.__orig_bases__
-        for base in itertools.chain.from_iterable(
-            _expand_generic_args(base) for base in orig_bases
-        ):
-            bases.add(base)
-
-    return bases
-
-
-EXCLUDED_BASE_TYPES = (object, Protocol, Generic)
-
-
-def resolve_types(type_: type) -> tuple[type, ...]:
-    return tuple(
-        type_
-        for type_ in _resolve_bases(type_)
-        if type_ not in EXCLUDED_BASE_TYPES
-    )
-
-
-def _get(container, key: str):
-    if isinstance(container, dict):
-        try:
-            return container[key]
-        except KeyError:
-            if "__builtins__" in container:
-                return _get(container["__builtins__"], key)
-            raise
-    return getattr(container, key)
-
-
-def resolve_forward_ref(forward_ref: str, globals_: dict):
-    if not isinstance(forward_ref, str):
-        return forward_ref
-
-    return _eval_type(ForwardRef(forward_ref), globals_, globals_)
 
 
 @dataclass(frozen=True)
@@ -187,7 +113,7 @@ class Container:
         :param component: The object to be added to the registry.
         :return:
         """
-        resolved_types = resolve_types(instance.__class__)
+        resolved_types = resolve_base_types(instance.__class__)
 
         if name is None:
             i = 0
@@ -219,7 +145,7 @@ class Container:
 
     def remove(self, instance: Any) -> None:
         """Remove an object from the object registry."""
-        resolved_types = resolve_types(instance.__class__)
+        resolved_types = resolve_base_types(instance.__class__)
 
         self._remove_from_types(instance, resolved_types)
 
@@ -245,7 +171,7 @@ class Container:
             raise InstanceOfNameNotFoundError(name)
         del self._mapping_by_name[name]
 
-        resolved_types = resolve_types(wrapper.instance.__class__)
+        resolved_types = resolve_base_types(wrapper.instance.__class__)
         for type_ in resolved_types:
             if type_ in self._mapping_by_type:
                 type_bucket = self._mapping_by_type[type_]
@@ -328,7 +254,7 @@ class Container:
     def _get_single_by_type(
         self, type_: Type[E], default: Any = ...
     ) -> InstanceWrapper[E]:
-        type_, metadata = get_metadata(type_)
+        type_, metadata = get_attributes(type_)
         names = []
         for meta in metadata:
             if isinstance(meta, Name):

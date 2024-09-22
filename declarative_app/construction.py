@@ -16,8 +16,10 @@ from typing import (
 from declarative_app.container import Container
 from declarative_app.errors import (
     CyclicDependencyError,
+    FailedToResolveError,
     InstanceNotFoundError,
     NoConstructPlanError,
+    TracedTypeConstructionResolutionError,
 )
 from declarative_app.rules import RuleRegistry
 
@@ -175,60 +177,74 @@ class ConstructionResolver:
             result = self._memo[target] = tuple(self._raw_create_plans(target))
         return result
 
+    def _resolve_plan(
+        self,
+        target: type[T],
+        name: str,
+        plan: ConstructionPlan[T],
+        trace: Tracing,
+    ) -> Iterable[Construction[T]]:
+        curr_trace = plan.source, name, target
+        tracing = trace.chain(curr_trace)
+        if curr_trace in trace.traces:
+            raise CyclicDependencyError(target, tracing.traces)
+        if plan.dependencies:
+            parameters: dict[str, tuple[Construction, ...]] = {}
+            for dependency_name, dependency in plan.dependencies.items():
+                parameters[dependency_name] = tuple(
+                    self._resolve(dependency, dependency_name, tracing)
+                )
+            for parameter_permutation, level in permutate_parameters(
+                parameters
+            ):
+                yield Construction(
+                    source=plan.source,
+                    constructor=plan.constructor,
+                    is_async=plan.is_async,
+                    output_type=plan.output_type,
+                    parameters=parameter_permutation,
+                    chain_length=level,
+                )
+        else:
+            yield Construction(
+                source=plan.source,
+                constructor=plan.constructor,
+                is_async=plan.is_async,
+                output_type=plan.output_type,
+                parameters={},
+                chain_length=0,
+            )
+
     def _resolve(
         self, target: type[T], name: str, trace: Tracing
     ) -> Iterable[Construction[T]]:
         plans = self._create_plans(target)
         if not plans:
             raise NoConstructPlanError(target, trace.traces)
-        errors = []
-        constructions = []
+        errors: list[TracedTypeConstructionResolutionError] = []
+        constructions: list[Construction[T]] = []
         for plan in plans:
-            curr_trace = plan.source, name, target
-            tracing = trace.chain(curr_trace)
-            if curr_trace in trace.traces:
-                errors.append(CyclicDependencyError(target, tracing.traces))
-                continue
-            if plan.dependencies:
-                parameters: dict[str, tuple[Construction, ...]] = {}
-                for dependency_name, dependency in plan.dependencies.items():
-                    parameters[dependency_name] = tuple(
-                        self._resolve(dependency, dependency_name, tracing)
-                    )
-                for parameter_permutation, level in permutate_parameters(
-                    parameters
-                ):
-                    constructions.append(
-                        Construction(
-                            source=plan.source,
-                            constructor=plan.constructor,
-                            is_async=plan.is_async,
-                            output_type=plan.output_type,
-                            parameters=parameter_permutation,
-                            chain_length=level,
-                        )
-                    )
-            else:
-                constructions.append(
-                    Construction(
-                        source=plan.source,
-                        constructor=plan.constructor,
-                        is_async=plan.is_async,
-                        output_type=plan.output_type,
-                        parameters={},
-                        chain_length=0,
-                    )
+            try:
+                constructions.extend(
+                    self._resolve_plan(target, name, plan, trace)
                 )
+            except (NoConstructPlanError, CyclicDependencyError) as exc:
+                errors.append(exc)
+            except FailedToResolveError as exc:
+                errors.extend(exc.errors)
         if not constructions and errors:
-            raise errors[0]
+            raise FailedToResolveError(target, trace.traces, errors)
         yield from constructions
 
     def resolve(self, target: type[T]) -> Iterable[Construction[T]]:
         tracing = Tracing(tuple())
-        return sorted(
-            self._resolve(target, "__root__", tracing),
-            key=lambda x: x.chain_length,
-        )
+        try:
+            return sorted(
+                self._resolve(target, "__root__", tracing),
+                key=lambda x: x.chain_length,
+            )
+        except (NoConstructPlanError, CyclicDependencyError) as exc:
+            raise FailedToResolveError(target, tracing.traces, [exc])
 
 
 def _format_construction_string(

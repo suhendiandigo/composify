@@ -6,7 +6,7 @@ from declarative_app.construction import (
     ConstructionResolver,
     ConstructRuleConstructionPlanFactory,
 )
-from declarative_app.errors import CyclicDependencyError
+from declarative_app.errors import CyclicDependencyError, FailedToResolveError
 from declarative_app.rules import RuleRegistry, collect_rules, rule
 
 
@@ -47,8 +47,9 @@ def test_raises_cyclic_dependency():
             ConstructRuleConstructionPlanFactory(RuleRegistry(rules)),
         ]
     )
-    with raises(CyclicDependencyError):
+    with raises(FailedToResolveError) as exc:
         list(resolver.resolve(B))
+    assert isinstance(exc.value.errors[0], CyclicDependencyError)
 
 
 def test_cyclic_dependency_but_okay():

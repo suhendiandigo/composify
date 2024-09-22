@@ -1,4 +1,4 @@
-from typing import Any, TypeAlias
+from typing import Any, Iterable, TypeAlias
 
 
 class ContainerError(Exception):
@@ -58,31 +58,47 @@ class ResolverError(Exception):
 
 
 class TypeConstructionResolutionError(ResolverError):
-    pass
+
+    def __init__(self, type_: type, msg: str) -> None:
+        super().__init__(msg)
+        self.type_ = type_
 
 
 Trace: TypeAlias = tuple[str, str, type]
 Traces: TypeAlias = tuple[Trace, ...]
 
 
-class FailedToResolveError(TypeConstructionResolutionError):
-    def __init__(self, type_: type, traces: Traces) -> None:
-        self.type_ = type_
+class TracedTypeConstructionResolutionError(TypeConstructionResolutionError):
+
+    def __init__(self, type_: type, traces: Traces, msg: str) -> None:
+        super().__init__(type_, msg)
         self.traces = traces
-        super().__init__(f"Failed to resolve for {self.type_!r}")
 
 
-class NoConstructPlanError(TypeConstructionResolutionError):
+class NoConstructPlanError(TracedTypeConstructionResolutionError):
     def __init__(self, type_: type, traces: Traces) -> None:
-        self.type_ = type_
-        self.traces = traces
         super().__init__(
-            f"Unable to find construction plan for {self.type_!r}"
+            type_, traces, f"Unable to find construction plan for {type_!r}"
         )
 
 
-class CyclicDependencyError(TypeConstructionResolutionError):
+class CyclicDependencyError(TracedTypeConstructionResolutionError):
     def __init__(self, type_: type, traces: Traces) -> None:
-        self.type_ = type_
-        self.traces = traces
-        super().__init__(f"Cyclic dependency found for {self.type_!r}")
+        super().__init__(
+            type_, traces, f"Cyclic dependency found for {type_!r}"
+        )
+
+
+class FailedToResolveError(TracedTypeConstructionResolutionError):
+    def __init__(
+        self,
+        type_: type,
+        traces: Traces,
+        errors: Iterable[TracedTypeConstructionResolutionError],
+    ) -> None:
+        self.errors = errors
+        super().__init__(
+            type_,
+            traces,
+            f"Failed to resolve for {type_!r}",
+        )

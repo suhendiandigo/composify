@@ -1,6 +1,13 @@
 import sys
-from dataclasses import dataclass
-from typing import Annotated, Any, Callable, TypeAlias, get_args, get_origin
+from typing import (
+    Annotated,
+    Any,
+    Callable,
+    TypeAlias,
+    TypeVar,
+    get_args,
+    get_origin,
+)
 
 if sys.version_info < (3, 10):
     SLOTS = {}
@@ -12,16 +19,9 @@ class BaseMetadata:
     __slots__ = ()
 
 
-@dataclass(frozen=True, **SLOTS)
-class Name(BaseMetadata):
-    name: str
+M = TypeVar("M", bound=BaseMetadata)
 
-
-def _is_metadata_instance(val: Any) -> bool:
-    return isinstance(val, BaseMetadata)
-
-
-TypeMetadataPair: TypeAlias = tuple[type, tuple[BaseMetadata, ...]]
+TypeMetadataPair: TypeAlias = tuple[type, tuple[M, ...]]
 
 
 def _get_metadata(
@@ -36,5 +36,9 @@ def _get_metadata(
     return type_, tuple(filter(is_instance_func, vals))
 
 
+def _is_base_metadata_instance(val: Any) -> bool:
+    return isinstance(val, BaseMetadata)
+
+
 def get_metadata(type_: type) -> TypeMetadataPair:
-    return _get_metadata(type_, _is_metadata_instance)
+    return _get_metadata(type_, _is_base_metadata_instance)
