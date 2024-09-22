@@ -6,7 +6,6 @@ from typing import (
     Callable,
     Generic,
     Iterable,
-    Mapping,
     ParamSpec,
     Protocol,
     TypeAlias,
@@ -21,7 +20,7 @@ from declarative_app.errors import (
     NoConstructPlanError,
     TracedTypeConstructionResolutionError,
 )
-from declarative_app.rules import RuleRegistry
+from declarative_app.rules import ParameterTypes, RuleRegistry
 
 T = TypeVar("T")
 P = ParamSpec("P")
@@ -46,7 +45,7 @@ class ConstructionPlan(Generic[T]):
     constructor: _ConstructorFunction[T]
     is_async: bool
     output_type: type[T]
-    dependencies: Mapping[str, type]
+    dependencies: ParameterTypes
 
 
 @dataclass(frozen=True)
@@ -55,7 +54,7 @@ class Construction(Generic[T]):
     constructor: _ConstructorFunction[T]
     is_async: bool = field(hash=False)
     output_type: type[T] = field(hash=False)
-    parameters: Mapping[str, "Construction"]
+    parameters: tuple[tuple[str, "Construction"], ...]
     chain_length: int = field(hash=False)
 
 
@@ -100,7 +99,7 @@ class ContainerConstructionPlanFactory(ConstructionPlanFactory):
                 constructor=Static(wrapper.instance),
                 is_async=False,
                 output_type=type_,
-                dependencies={},
+                dependencies=tuple(),
             )
         except InstanceNotFoundError:
             pass
@@ -128,9 +127,13 @@ class ConstructRuleConstructionPlanFactory(ConstructionPlanFactory):
             )
 
 
+ParameterConstruction: TypeAlias = tuple[str, Construction]
+ParameterConstructions: TypeAlias = tuple[ParameterConstruction, ...]
+
+
 def _permutate_parameters(
     level: int,
-    parameters: dict[str, Construction],
+    parameters: ParameterConstructions,
     rest_of_parameters: tuple[tuple[str, tuple[Construction, ...]], ...],
 ):
     if not rest_of_parameters:
@@ -139,16 +142,15 @@ def _permutate_parameters(
         name, values = rest_of_parameters[0]
         rest_of_parameters = rest_of_parameters[1:]
         for value in values:
-            p = parameters.copy()
-            p[name] = value
+            p = parameters + ((name, value),)
             yield from _permutate_parameters(level + 1, p, rest_of_parameters)
 
 
 def permutate_parameters(
     parameters: dict[str, tuple[Construction, ...]]
-) -> tuple[tuple[dict[str, Construction], int], ...]:
+) -> tuple[tuple[ParameterConstructions, int], ...]:
     values = tuple(parameters.items())
-    return _permutate_parameters(0, {}, values)
+    return _permutate_parameters(0, tuple(), values)
 
 
 @dataclass(frozen=True)
@@ -190,7 +192,7 @@ class ConstructionResolver:
             raise CyclicDependencyError(target, tracing.traces)
         if plan.dependencies:
             parameters: dict[str, tuple[Construction, ...]] = {}
-            for dependency_name, dependency in plan.dependencies.items():
+            for dependency_name, dependency in plan.dependencies:
                 parameters[dependency_name] = tuple(
                     self._resolve(dependency, dependency_name, tracing)
                 )
@@ -211,7 +213,7 @@ class ConstructionResolver:
                 constructor=plan.constructor,
                 is_async=plan.is_async,
                 output_type=plan.output_type,
-                parameters={},
+                parameters=tuple(),
                 chain_length=0,
             )
 
@@ -252,7 +254,7 @@ def _format_construction_string(
 ) -> str:
     indent_str = " " * (level * indent)
     result = f"{indent_str}{name + ": " if name else ''}{construction.output_type!s} <- {construction.source}"
-    for parameter_name, parameter in construction.parameters.items():
+    for parameter_name, parameter in construction.parameters:
         result += "\n" + _format_construction_string(
             parameter_name, parameter, indent, level + 1
         )
@@ -314,7 +316,7 @@ class Constructor:
     async def _construct(self, construction: Construction[T]) -> T:
         parameter_name_coroutines = tuple(
             (name, self.construct(param))
-            for name, param in construction.parameters.items()
+            for name, param in construction.parameters
         )
 
         names = tuple(p[0] for p in parameter_name_coroutines)

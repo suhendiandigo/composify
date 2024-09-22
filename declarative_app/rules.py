@@ -1,5 +1,6 @@
 import asyncio
 import inspect
+from bisect import insort
 from dataclasses import dataclass
 from functools import partial, wraps
 from types import FrameType, ModuleType
@@ -7,18 +8,23 @@ from typing import (
     Any,
     Awaitable,
     Callable,
+    FrozenSet,
     Generic,
     Iterable,
     Mapping,
     ParamSpec,
-    Type,
     TypeAlias,
     TypeVar,
     get_type_hints,
 )
 
 from declarative_app.metadata import BaseAttributeMetadata, get_attributes
-from declarative_app.types import get_type
+from declarative_app.metadata.qualifiers import (
+    VarianceType,
+    get_qualifiers,
+    resolve_variance,
+)
+from declarative_app.types import get_type, resolve_base_types
 
 __all__ = ["rule", "as_rule"]
 
@@ -34,6 +40,9 @@ F = TypeVar("F", bound=RuleFunctionType)
 
 RULE_ATTR = "__rule__"
 
+ParameterType: TypeAlias = tuple[str, type]
+ParameterTypes: TypeAlias = set[ParameterType]
+
 
 @dataclass(frozen=True)
 class ConstructRule(Generic[T]):
@@ -41,8 +50,8 @@ class ConstructRule(Generic[T]):
     is_async: bool
     cannonical_name: str
     output_type: type[T]
-    output_attributes: set[BaseAttributeMetadata]
-    parameter_types: Mapping[str, type]
+    output_attributes: FrozenSet[BaseAttributeMetadata]
+    parameter_types: ParameterTypes
 
 
 def _make_rule(
@@ -50,16 +59,16 @@ def _make_rule(
     *,
     is_async: bool,
     canonical_name: str,
-    output_type: Type,
+    output_type: type,
     output_attributes: Iterable[BaseAttributeMetadata],
-    parameter_types: Mapping[str, Type],
+    parameter_types: tuple[tuple[str, type], ...],
 ) -> ConstructRule:
     return ConstructRule(
         func,
         is_async=is_async,
         cannonical_name=canonical_name,
         output_type=output_type,
-        output_attributes=set(output_attributes),
+        output_attributes=frozenset(output_attributes),
         parameter_types=parameter_types,
     )
 
@@ -78,10 +87,10 @@ class MissingParameterTypeAnnotation(InvalidTypeAnnotation):
 
 def _ensure_type_annotation(
     *,
-    type_annotation: Type | None,
+    type_annotation: type | None,
     name: str,
-    raise_type: Type[InvalidTypeAnnotation],
-) -> Type:
+    raise_type: type[InvalidTypeAnnotation],
+) -> type:
     if type_annotation is None:
         raise raise_type(f"{name} is missing a type annotation.")
     # if not isinstance(type_annotation, type):
@@ -107,14 +116,17 @@ def rule_decorator(
     metadata = get_attributes(return_type)
     return_type = get_type(return_type)
 
-    parameter_types = {
-        parameter: _ensure_type_annotation(
-            type_annotation=type_hints.get(parameter),
-            name=f"{func_id} parameter {parameter}",
-            raise_type=MissingParameterTypeAnnotation,
+    parameter_types = tuple(
+        (
+            parameter,
+            _ensure_type_annotation(
+                type_annotation=type_hints.get(parameter),
+                name=f"{func_id} parameter {parameter}",
+                raise_type=MissingParameterTypeAnnotation,
+            ),
         )
         for parameter in func_params
-    }
+    )
     effective_name = f"{func.__module__}.{func.__qualname__}".replace(
         ".<locals>", ""
     )
@@ -193,40 +205,87 @@ class RuleSignatureConflictError(RuleError):
         )
 
 
+class DuplicateRuleError(RuleError):
+    def __init__(self, to_add: ConstructRule, existing: ConstructRule) -> None:
+        self.to_add = to_add
+        self.existing = existing
+        super().__init__(
+            f"Rule {to_add!r} conflict with existing rule {existing!r}"
+        )
+
+
+def _rule_ordering(rule: ConstructRule) -> int:
+    return len(rule.output_type.mro())
+
+
 class RuleRegistry:
 
-    __slots__ = "_rules"
+    __slots__ = ("_rules", "_default_variance")
 
     _rules: dict[type, list[ConstructRule]]
 
-    def __init__(self, rules: Iterable[ConstructRule]) -> None:
+    def __init__(
+        self,
+        rules: Iterable[ConstructRule],
+        default_variance: VarianceType = "covariant",
+    ) -> None:
         self._rules = {}
+        self._default_variance = default_variance
         for rule in rules:
             self.register_rule(rule)
 
-    def register_rule(self, rule: ConstructRule) -> None:
-        type_ = rule.output_type
-
+    def _register_rule_to_type(self, type_: type, rule: ConstructRule) -> None:
         if type_ in self._rules:
             rules = self._rules[type_]
             for _rule in rules:
+                if _rule == rule:
+                    raise DuplicateRuleError(rule, _rule)
                 if (_rule.parameter_types == rule.parameter_types) and (
                     _rule.output_attributes == rule.output_attributes
                 ):
                     raise RuleSignatureConflictError(rule, _rule)
-            rules.append(rule)
+            # We want to keep the rules ordered
+            # by how derived the output type is
+            # we are prioritizing the less derived type
+            insort(rules, rule, key=_rule_ordering)
         else:
             self._rules[type_] = [rule]
+
+    def register_rule(self, rule: ConstructRule) -> None:
+        for type_ in resolve_base_types(rule.output_type):
+            self._register_rule_to_type(type_, rule)
 
     def register_rules(self, rules: Iterable[ConstructRule]) -> None:
         for rule in rules:
             self.register_rule(rule)
 
+    def _get_rule_for_type(
+        self, type_: type[T], variance: VarianceType
+    ) -> list[ConstructRule[T]]:
+        if variance == "invariant":
+            return list(
+                filter(
+                    lambda x: x.output_type is type_,
+                    self._rules.get(type_, []),
+                )
+            )
+        elif variance == "contravariant":
+            rules = []
+            for parent_type in resolve_base_types(type_):
+                rules.extend(self._rules.get(parent_type, []))
+            return list(set(rules))
+        return self._rules.get(type_, [])
+
     def get(self, target: type[T]) -> Iterable[ConstructRule[T]] | None:
         type_ = get_type(target)
         attributes = get_attributes(target)
+        qualifiers = get_qualifiers(target)
 
-        rules: Iterable[ConstructRule[T]] = self._rules.get(type_, tuple())
+        variance = resolve_variance(qualifiers, self._default_variance)
+
+        rules: list[ConstructRule[T]] = self._get_rule_for_type(
+            type_, variance
+        )
         if not rules:
             return None
         if attributes and (

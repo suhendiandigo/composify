@@ -19,7 +19,7 @@ def test_rule_async_metadata():
     assert rule.is_async
     assert rule.function == example_async_rule
     assert rule.output_type == Result
-    assert rule.parameter_types["param"] == Param
+    assert rule.parameter_types[0][1] == Param
 
 
 def test_rule_sync_metadata():
@@ -27,7 +27,7 @@ def test_rule_sync_metadata():
     assert not rule.is_async
     assert rule.function == example_sync_rule
     assert rule.output_type == Result
-    assert rule.parameter_types["param"] == Param
+    assert rule.parameter_types[0][1] == Param
 
 
 def test_rule_sync_invocation():
