@@ -99,7 +99,7 @@ class ContainerConstructionPlanFactory(ConstructionPlanFactory):
                 constructor=Static(wrapper.instance),
                 is_async=False,
                 output_type=type_,
-                dependencies=tuple(),
+                dependencies=frozenset(),
             )
         except InstanceNotFoundError:
             pass

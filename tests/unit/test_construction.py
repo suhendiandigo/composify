@@ -4,21 +4,17 @@ import pytest
 from fixture.example_complex_rules import Param, Result, rules
 
 from declarative_app.construction import (
-    ConstructionResolver,
     Constructor,
-    ConstructRuleConstructionPlanFactory,
     ContainerConstructionPlanFactory,
 )
-from declarative_app.rules import RuleRegistry
+from tests.utils import create_resolver, create_rule_plan_factory
 
 
 @pytest.mark.asyncio_cooperative
 async def test_construct(container):
-    resolver = ConstructionResolver(
-        factories=[
-            ContainerConstructionPlanFactory(container),
-            ConstructRuleConstructionPlanFactory(RuleRegistry(rules)),
-        ]
+    resolver = create_resolver(
+        ContainerConstructionPlanFactory(container),
+        create_rule_plan_factory(*rules),
     )
     container.add(Param(5))
     plans = list(resolver.resolve(Result))
@@ -32,11 +28,9 @@ async def test_construct(container):
 
 @pytest.mark.asyncio_cooperative
 async def test_concurrent_construct(container):
-    resolver = ConstructionResolver(
-        factories=[
-            ContainerConstructionPlanFactory(container),
-            ConstructRuleConstructionPlanFactory(RuleRegistry(rules)),
-        ]
+    resolver = create_resolver(
+        ContainerConstructionPlanFactory(container),
+        create_rule_plan_factory(*rules),
     )
     container.add(Param(5))
     plans = list(resolver.resolve(Result))

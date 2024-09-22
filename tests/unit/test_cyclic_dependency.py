@@ -2,12 +2,9 @@ from dataclasses import dataclass
 
 from pytest import raises
 
-from declarative_app.construction import (
-    ConstructionResolver,
-    ConstructRuleConstructionPlanFactory,
-)
 from declarative_app.errors import CyclicDependencyError, FailedToResolveError
-from declarative_app.rules import RuleRegistry, collect_rules, rule
+from declarative_app.rules import collect_rules, rule
+from tests.utils import create_rule_resolver
 
 
 @dataclass(frozen=True)
@@ -42,21 +39,13 @@ rules_2 = collect_rules()
 
 
 def test_raises_cyclic_dependency():
-    resolver = ConstructionResolver(
-        factories=[
-            ConstructRuleConstructionPlanFactory(RuleRegistry(rules)),
-        ]
-    )
+    resolver = create_rule_resolver(*rules)
     with raises(FailedToResolveError) as exc:
         list(resolver.resolve(B))
     assert isinstance(exc.value.errors[0], CyclicDependencyError)
 
 
 def test_cyclic_dependency_but_okay():
-    resolver = ConstructionResolver(
-        factories=[
-            ConstructRuleConstructionPlanFactory(RuleRegistry(rules_2)),
-        ]
-    )
+    resolver = create_rule_resolver(*rules_2)
     plans = list(resolver.resolve(B))
     assert len(plans) > 0

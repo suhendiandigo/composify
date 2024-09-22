@@ -12,6 +12,11 @@ from typing import (  # type: ignore[attr-defined]
 )
 
 from declarative_app.metadata import Name, get_attributes
+from declarative_app.metadata.qualifiers import (
+    VarianceType,
+    get_qualifiers,
+    resolve_variance,
+)
 from declarative_app.types import get_type, resolve_base_types
 
 from .errors import (
@@ -36,6 +41,7 @@ ARRAY_TYPES = {
 @dataclass(frozen=True)
 class InstanceWrapper(Generic[E]):
     instance: E
+    instance_type: Type[E]
     resolved_types: tuple[type, ...]
     name: str
     is_primary: bool
@@ -88,15 +94,25 @@ def _resolve_instance_name(value: Any):
 
 
 class Container:
-    __slots__ = ("_name", "_mapping_by_type", "_mapping_by_name")
+    __slots__ = (
+        "_name",
+        "_mapping_by_type",
+        "_mapping_by_name",
+        "_default_variance",
+    )
 
     _mapping_by_type: dict[Type, WrapperGroup]
     _mapping_by_name: dict[str, InstanceWrapper]
 
-    def __init__(self, name: str | None = None):
+    def __init__(
+        self,
+        name: str | None = None,
+        default_variance: VarianceType = "covariant",
+    ):
         self._name = name or hex(self.__hash__())
         self._mapping_by_type = {}
         self._mapping_by_name = {}
+        self._default_variance = default_variance
 
     def __str__(self) -> str:
         return f"container::{self._name}"
@@ -113,7 +129,8 @@ class Container:
         :param component: The object to be added to the registry.
         :return:
         """
-        resolved_types = resolve_base_types(instance.__class__)
+        type_ = instance.__class__
+        resolved_types = tuple(reversed(resolve_base_types(type_)))
 
         if name is None:
             i = 0
@@ -129,6 +146,7 @@ class Container:
 
         wrapper = InstanceWrapper(
             instance,
+            instance_type=type_,
             resolved_types=resolved_types,
             name=name,
             is_primary=is_primary,
@@ -251,13 +269,32 @@ class Container:
             return default
         raise InstanceOfTypeNotFoundError(type_)
 
+    def _get_wrappers_for_type(
+        self, type_: type[E], variance: VarianceType
+    ) -> list[InstanceWrapper[E]]:
+        if variance == "invariant":
+            return list(
+                filter(
+                    lambda x: x.instance_type is type_,
+                    self._mapping_by_type.get(type_, []),
+                )
+            )
+        elif variance == "contravariant":
+            rules = set()
+            for parent_type in resolve_base_types(type_):
+                for rule in self._mapping_by_type.get(parent_type, tuple()):
+                    rules.add(rule)
+            return list(set(rules))
+        return list(self._mapping_by_type.get(type_, []))
+
     def _get_single_by_type(
         self, type_: Type[E], default: Any = ...
     ) -> InstanceWrapper[E]:
-        metadata = get_attributes(type_)
+        attributes = get_attributes(type_)
+        qualifiers = get_qualifiers(type_)
         type_ = get_type(type_)
         names = []
-        for meta in metadata:
+        for meta in attributes:
             if isinstance(meta, Name):
                 names.append(meta.name)
         if names:
@@ -266,28 +303,29 @@ class Container:
                     return self._mapping_by_name[qualifier]
             raise InstanceOfTypeNotFoundError(type_)
 
-        if type_ in self._mapping_by_type:
-            wrappers = self._mapping_by_type[type_]
-            if len(wrappers) == 1:
-                wrapper = wrappers[0]
-                if names:
-                    if wrapper.name in names:
-                        return wrapper
-                else:
+        variance = resolve_variance(qualifiers, self._default_variance)
+        wrappers = self._get_wrappers_for_type(type_, variance)
+        if len(wrappers) == 1:
+            wrapper = wrappers[0]
+            if names:
+                if wrapper.name in names:
                     return wrapper
-            elif len(wrappers) > 1:
-                if names:
-                    filtered = list(
-                        filter(lambda x: x.name in names, wrappers)
-                    )
-                    if len(filtered) == 1:
-                        return filtered[0]
-                    elif len(filtered) > 1:
-                        raise AmbiguousInstanceError(type_, tuple(filtered))
-                else:
-                    if wrappers.primary is not None:
-                        return wrappers.primary
-                    raise AmbiguousInstanceError(type_, tuple(wrappers))
+            else:
+                return wrapper
+        elif len(wrappers) > 1:
+            if names:
+                filtered = list(filter(lambda x: x.name in names, wrappers))
+                if len(filtered) == 1:
+                    return filtered[0]
+                elif len(filtered) > 1:
+                    raise AmbiguousInstanceError(type_, tuple(filtered))
+            else:
+                primary = next(
+                    iter(list(filter(lambda x: x.is_primary, wrappers))), None
+                )
+                if primary is not None:
+                    return primary
+                raise AmbiguousInstanceError(type_, tuple(wrappers))
         if default is not ...:
             return default
         raise InstanceOfTypeNotFoundError(type_)

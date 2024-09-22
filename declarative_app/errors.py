@@ -26,7 +26,7 @@ class InstanceOfNameNotFoundError(InstanceNotFoundError):
 
 
 class AmbiguousInstanceError(InstanceError):
-    def __init__(self, to_find: Any, candidates: tuple[Any]):
+    def __init__(self, to_find: Any, candidates: tuple[Any, ...]):
         self.to_find = to_find
         self.candidates = candidates
         super().__init__(

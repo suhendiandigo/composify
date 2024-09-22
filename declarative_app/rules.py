@@ -41,7 +41,7 @@ F = TypeVar("F", bound=RuleFunctionType)
 RULE_ATTR = "__rule__"
 
 ParameterType: TypeAlias = tuple[str, type]
-ParameterTypes: TypeAlias = set[ParameterType]
+ParameterTypes: TypeAlias = frozenset[ParameterType]
 
 
 @dataclass(frozen=True)
@@ -61,7 +61,7 @@ def _make_rule(
     canonical_name: str,
     output_type: type,
     output_attributes: Iterable[BaseAttributeMetadata],
-    parameter_types: tuple[tuple[str, type], ...],
+    parameter_types: ParameterTypes,
 ) -> ConstructRule:
     return ConstructRule(
         func,
@@ -116,7 +116,7 @@ def rule_decorator(
     metadata = get_attributes(return_type)
     return_type = get_type(return_type)
 
-    parameter_types = tuple(
+    parameter_types = frozenset(
         (
             parameter,
             _ensure_type_annotation(
@@ -157,6 +157,8 @@ def rule(f: RuleFunctionType | None = None, /, **kwargs):
 
 
 def as_rule(f: Any) -> ConstructRule | None:
+    if isinstance(f, ConstructRule):
+        return f
     return getattr(f, RULE_ATTR, None)
 
 
@@ -270,10 +272,11 @@ class RuleRegistry:
                 )
             )
         elif variance == "contravariant":
-            rules = []
+            rules = set()
             for parent_type in resolve_base_types(type_):
-                rules.extend(self._rules.get(parent_type, []))
-            return list(set(rules))
+                for rule in self._rules.get(parent_type, tuple()):
+                    rules.add(rule)
+            return list(rules)
         return self._rules.get(type_, [])
 
     def get(self, target: type[T]) -> Iterable[ConstructRule[T]] | None:
