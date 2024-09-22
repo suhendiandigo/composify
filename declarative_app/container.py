@@ -1,12 +1,6 @@
 from collections import abc
 from dataclasses import dataclass
-from typing import (  # type: ignore[attr-defined]
-    Any,
-    Generic,
-    Iterable,
-    Type,
-    TypeVar,
-)
+from typing import Any, Generic, Iterable, Type, TypeVar
 
 from declarative_app.metadata import Name, get_attributes
 from declarative_app.metadata.attributes import AttributeSet, resolve_name
