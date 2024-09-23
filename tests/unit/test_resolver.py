@@ -6,7 +6,7 @@ from fixture.example_complex_rules import (
     rules,
 )
 
-from declarative_app.construction import ContainerConstructionPlanFactory
+from declarative_app.provider import ContainerInstanceProvider
 from tests.utils import (
     create_resolver,
     create_rule_plan_factory,
@@ -16,7 +16,7 @@ from tests.utils import (
 
 def test_create_plan(container):
     resolver = create_resolver(
-        ContainerConstructionPlanFactory(container),
+        ContainerInstanceProvider(container),
         create_rule_plan_factory(*rules),
     )
     container.add(Param(5))
@@ -26,7 +26,7 @@ def test_create_plan(container):
 
 def test_chain_length(container):
     resolver = create_resolver(
-        ContainerConstructionPlanFactory(container),
+        ContainerInstanceProvider(container),
         create_rule_plan_factory(infer_param_1),
     )
     container.add(Param(5))

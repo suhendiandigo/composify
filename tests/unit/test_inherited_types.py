@@ -3,8 +3,8 @@ from typing import Annotated
 
 import pytest
 
-from declarative_app.construction import Constructor
-from declarative_app.errors import FailedToResolveError
+from declarative_app.blueprint import FailedToResolveError
+from declarative_app.builder import Builder
 from declarative_app.metadata.qualifiers import Variance
 from declarative_app.rules import rule
 from tests.utils import create_rule_resolver
@@ -38,16 +38,16 @@ def create_c() -> C:
 @pytest.mark.asyncio_cooperative
 async def test_covariant():
     resolver = create_rule_resolver(create_c)
-    constructor = Constructor()
+    builder = Builder()
 
     plans = list(resolver.resolve(Annotated[A, Variance("covariant")]))
     assert len(plans) == 1
-    result = await constructor.construct(plans[0])
+    result = await builder.from_blueprint(plans[0])
     assert isinstance(result, C)
 
     plans = list(resolver.resolve(Annotated[C, Variance("covariant")]))
     assert len(plans) == 1
-    result = await constructor.construct(plans[0])
+    result = await builder.from_blueprint(plans[0])
     assert isinstance(result, C)
 
     with pytest.raises(FailedToResolveError):
@@ -57,16 +57,16 @@ async def test_covariant():
 @pytest.mark.asyncio_cooperative
 async def test_contravariant():
     resolver = create_rule_resolver(create_a)
-    constructor = Constructor()
+    builder = Builder()
 
     plans = list(resolver.resolve(Annotated[C, Variance("contravariant")]))
     assert len(plans) == 1
-    result = await constructor.construct(plans[0])
+    result = await builder.from_blueprint(plans[0])
     assert isinstance(result, A)
 
     plans = list(resolver.resolve(Annotated[A, Variance("contravariant")]))
     assert len(plans) == 1
-    result = await constructor.construct(plans[0])
+    result = await builder.from_blueprint(plans[0])
     assert isinstance(result, A)
 
     with pytest.raises(FailedToResolveError):
@@ -76,11 +76,11 @@ async def test_contravariant():
 @pytest.mark.asyncio_cooperative
 async def test_invariant():
     resolver = create_rule_resolver(create_c)
-    constructor = Constructor()
+    builder = Builder()
 
     plans = list(resolver.resolve(Annotated[C, Variance("invariant")]))
     assert len(plans) == 1
-    result = await constructor.construct(plans[0])
+    result = await builder.from_blueprint(plans[0])
     assert isinstance(result, C)
 
     with pytest.raises(FailedToResolveError):

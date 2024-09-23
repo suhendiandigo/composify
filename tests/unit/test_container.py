@@ -3,10 +3,10 @@ from typing import Annotated
 
 from pytest import raises
 
-from declarative_app.container import Container
-from declarative_app.errors import (
+from declarative_app.container import (
     AmbiguousInstanceError,
     ConflictingInstanceNameError,
+    Container,
     InstanceNotFoundError,
     MultiplePrimaryInstanceError,
 )

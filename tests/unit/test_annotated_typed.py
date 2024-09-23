@@ -3,7 +3,7 @@ from typing import Annotated
 
 import pytest
 
-from declarative_app.construction import Constructor
+from declarative_app.builder import Builder
 from declarative_app.metadata import Name
 from declarative_app.rules import collect_rules, rule
 from tests.utils import create_rule_resolver
@@ -34,10 +34,10 @@ rules_2 = collect_rules()
 async def test_get_any():
     resolver = create_rule_resolver(*rules_1)
     plans = list(resolver.resolve(Annotated[A, Name("special")]))
-    constructor = Constructor()
+    builder = Builder()
     assert len(plans) == 1
     plan = plans[0]
-    result = await constructor.construct(plan)
+    result = await builder.from_blueprint(plan)
     assert isinstance(result, A)
     assert result.value == 100
 
@@ -46,14 +46,14 @@ async def test_get_any():
 async def test_get_special():
     resolver = create_rule_resolver(*rules_2)
     plans = list(resolver.resolve(Annotated[A, Name("special")]))
-    constructor = Constructor()
+    builder = Builder()
     assert len(plans) == 1
-    result = await constructor.construct(plans[0])
+    result = await builder.from_blueprint(plans[0])
     assert isinstance(result, A)
     assert result.value == 10
 
     plans = list(resolver.resolve(A))
-    constructor = Constructor()
+    builder = Builder()
     assert len(plans) == 2
-    result = await constructor.construct(plans[0])
+    result = await builder.from_blueprint(plans[0])
     assert result.value == 100

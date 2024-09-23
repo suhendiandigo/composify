@@ -1,0 +1,78 @@
+import asyncio
+from typing import Any, Protocol, TypeVar
+
+from declarative_app.blueprint import Blueprint
+
+__all__ = [
+    "Builder",
+    "BuilderCache",
+    "BuilderSaveTo",
+]
+
+
+T = TypeVar("T")
+
+
+class BuilderCache(Protocol[T]):
+    def __setitem__(self, key: Blueprint, value: T) -> None:
+        raise NotImplementedError()
+
+    def __getitem__(self, item: Blueprint) -> T:
+        raise NotImplementedError()
+
+    def get(self, key: Blueprint, default: T, /) -> T:
+        raise NotImplementedError()
+
+
+class BuilderSaveTo(Protocol):
+    def __setitem__(self, key: type[Any], value: Any) -> None:
+        raise NotImplementedError()
+
+
+_undefined = object()
+
+
+class Builder:
+
+    _cache: BuilderCache[Any] | None
+
+    def __init__(
+        self,
+        cache: BuilderCache | None = _undefined,  # type: ignore[assignment]
+        save_to: BuilderSaveTo | None = None,
+    ) -> None:
+        self._cache = {} if cache is _undefined else cache
+        self._save_to = save_to
+
+    async def from_blueprint(self, blueprint: Blueprint[T]) -> T:
+        if self._cache:
+            value = self._cache.get(blueprint, None)
+            if value is not None:
+                return await value
+        coroutine = self._from_blueprint(blueprint)
+        if self._cache:
+            # We cache the coroutine instead of the result
+            # This allows asynchronous requests to share the same coroutine
+            self._cache[blueprint] = coroutine
+        value = await coroutine
+        if self._save_to:
+            self._save_to[blueprint.output_type] = value
+        return value
+
+    async def _from_blueprint(self, construction: Blueprint[T]) -> T:
+        parameter_name_coroutines = tuple(
+            (name, self.from_blueprint(param))
+            for name, param in construction.dependencies
+        )
+
+        names = tuple(p[0] for p in parameter_name_coroutines)
+        coroutines = tuple(p[1] for p in parameter_name_coroutines)
+
+        results = tuple(await asyncio.gather(*coroutines))
+
+        parameters = {name: result for name, result in zip(names, results)}
+
+        if construction.is_async:
+            return await construction.constructor(**parameters)  # type: ignore[misc]
+        else:
+            return construction.constructor(**parameters)  # type: ignore[return-value]
