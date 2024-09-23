@@ -4,10 +4,9 @@ from typing import Annotated
 import pytest
 
 from declarative_app.blueprint import FailedToResolveError
-from declarative_app.builder import Builder
 from declarative_app.metadata.qualifiers import Variance
 from declarative_app.rules import rule
-from tests.utils import create_rule_resolver
+from tests.utils import blueprint, compare_blueprints, create_rule_resolver
 
 
 @dataclass(frozen=True)
@@ -38,53 +37,50 @@ def create_c() -> C:
 @pytest.mark.asyncio_cooperative
 async def test_covariant():
     resolver = create_rule_resolver(create_c)
-    builder = Builder()
 
-    plans = list(resolver.resolve(Annotated[A, Variance("covariant")]))
-    assert len(plans) == 1
-    result = await builder.from_blueprint(plans[0])
-    assert isinstance(result, C)
-
-    plans = list(resolver.resolve(Annotated[C, Variance("covariant")]))
-    assert len(plans) == 1
-    result = await builder.from_blueprint(plans[0])
-    assert isinstance(result, C)
+    compare_blueprints(
+        resolver.resolve(Annotated[A, Variance("covariant")]),
+        [blueprint(create_c)],
+    )
 
     with pytest.raises(FailedToResolveError):
-        list(resolver.resolve(Annotated[B, Variance("covariant")]))
+        resolver.resolve(Annotated[B, Variance("covariant")])
+
+    compare_blueprints(
+        resolver.resolve(Annotated[C, Variance("covariant")]),
+        [blueprint(create_c)],
+    )
 
 
 @pytest.mark.asyncio_cooperative
 async def test_contravariant():
     resolver = create_rule_resolver(create_a)
-    builder = Builder()
 
-    plans = list(resolver.resolve(Annotated[C, Variance("contravariant")]))
-    assert len(plans) == 1
-    result = await builder.from_blueprint(plans[0])
-    assert isinstance(result, A)
-
-    plans = list(resolver.resolve(Annotated[A, Variance("contravariant")]))
-    assert len(plans) == 1
-    result = await builder.from_blueprint(plans[0])
-    assert isinstance(result, A)
+    compare_blueprints(
+        resolver.resolve(Annotated[A, Variance("contravariant")]),
+        [blueprint(create_a)],
+    )
 
     with pytest.raises(FailedToResolveError):
         list(resolver.resolve(Annotated[B, Variance("contravariant")]))
+
+    compare_blueprints(
+        resolver.resolve(Annotated[C, Variance("contravariant")]),
+        [blueprint(create_a)],
+    )
 
 
 @pytest.mark.asyncio_cooperative
 async def test_invariant():
     resolver = create_rule_resolver(create_c)
-    builder = Builder()
-
-    plans = list(resolver.resolve(Annotated[C, Variance("invariant")]))
-    assert len(plans) == 1
-    result = await builder.from_blueprint(plans[0])
-    assert isinstance(result, C)
 
     with pytest.raises(FailedToResolveError):
         list(resolver.resolve(Annotated[A, Variance("invariant")]))
 
     with pytest.raises(FailedToResolveError):
         list(resolver.resolve(Annotated[B, Variance("invariant")]))
+
+    compare_blueprints(
+        resolver.resolve(Annotated[C, Variance("invariant")]),
+        [blueprint(create_c)],
+    )

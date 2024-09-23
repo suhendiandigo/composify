@@ -1,5 +1,6 @@
 import asyncio
-from typing import Any
+from itertools import zip_longest
+from typing import Any, Iterable
 
 from declarative_app.blueprint import Blueprint, BlueprintResolver
 from declarative_app.constructor import ConstructorFunction
@@ -90,3 +91,17 @@ def _find_difference(
 
 def find_difference(result: Blueprint, expected: Blueprint) -> tuple | None:
     return _find_difference(result, expected, tuple())
+
+
+def compare_blueprints(
+    plans: Iterable[Blueprint], expected_plans: Iterable[Blueprint]
+):
+    plans = list(plans)
+    expected_plans = list(expected_plans)
+    assert len(plans) == len(
+        expected_plans
+    ), f"different plan len {len(plans)} != {len(expected_plans)}"
+    for index, (plan, expected) in enumerate(
+        zip_longest(plans, expected_plans)
+    ):
+        assert plan == expected, f"case {index}"

@@ -1,6 +1,3 @@
-from itertools import zip_longest
-from typing import Iterable
-
 from fixture.example_complex_rules import (
     Param,
     Result,
@@ -11,10 +8,10 @@ from fixture.example_complex_rules import (
     rules,
 )
 
-from declarative_app.blueprint import Blueprint
 from declarative_app.provider import ContainerInstanceProvider
 from tests.utils import (
     blueprint,
+    compare_blueprints,
     create_resolver,
     create_rule_provider,
     create_rule_resolver,
@@ -29,20 +26,6 @@ def test_comparison():
     plans = list(resolver.resolve(Param))
     assert plans[0] == blueprint(default_param)
     assert plans[0] != blueprint(create_result)
-
-
-def compare_blueprints(
-    plans: Iterable[Blueprint], expected_plans: Iterable[Blueprint]
-):
-    plans = list(plans)
-    expected_plans = list(expected_plans)
-    assert len(plans) == len(
-        expected_plans
-    ), f"different plan len {len(plans)} != {len(expected_plans)}"
-    for index, (plan, expected) in enumerate(
-        zip_longest(plans, expected_plans)
-    ):
-        assert plan == expected, f"case {index}"
 
 
 def test_plan_ordering(container):
