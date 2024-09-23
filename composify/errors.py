@@ -56,10 +56,6 @@ class ContainerError(Exception):
     pass
 
 
-class InstanceError(ContainerError):
-    pass
-
-
 class InstanceNotFoundError(ContainerError):
     pass
 
@@ -76,7 +72,11 @@ class InstanceOfNameNotFoundError(InstanceNotFoundError):
         super().__init__(f"Instance of name {to_find!r} not found")
 
 
-class AmbiguousInstanceError(InstanceError):
+class InstanceRetrievalError(ContainerError):
+    pass
+
+
+class AmbiguousInstanceError(InstanceRetrievalError):
     def __init__(self, to_find: Any, candidates: tuple[Any, ...]):
         self.to_find = to_find
         self.candidates = candidates
@@ -85,7 +85,11 @@ class AmbiguousInstanceError(InstanceError):
         )
 
 
-class ConflictingInstanceNameError(InstanceError):
+class InstanceAdditionError(ContainerError):
+    pass
+
+
+class ConflictingInstanceNameError(InstanceAdditionError):
     def __init__(self, name: str, to_add: Any, existing: Any):
         self.name = name
         self.to_add = to_add
@@ -95,7 +99,7 @@ class ConflictingInstanceNameError(InstanceError):
         )
 
 
-class MultiplePrimaryInstanceError(InstanceError):
+class MultiplePrimaryInstanceError(InstanceAdditionError):
     def __init__(self, to_add: Any, existing: Any):
         self.to_add = to_add
         self.existing = existing
