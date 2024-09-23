@@ -25,6 +25,8 @@ class Entry(ABC):
     def name(self) -> str:
         raise NotImplementedError()
 
+    attributes: AttributeSet
+
 
 E = TypeVar("E", bound=Entry)
 
@@ -47,12 +49,20 @@ def _entry_ordering(entry: Entry) -> int:
     return len(entry.key.mro())
 
 
-class AttributeFilterer(Protocol, Generic[E]):
+class AttributeFilterer(Protocol):
 
     def match_entry_attributes(
-        self, entry: E, attributes: AttributeSet
+        self, entry: Entry, attributes: AttributeSet
     ) -> bool:
         raise NotImplementedError()
+
+
+class DefaultAttributeFilterer(AttributeFilterer):
+
+    def match_entry_attributes(
+        self, entry: Entry, attributes: AttributeSet
+    ) -> bool:
+        return entry.attributes.issuperset(attributes)
 
 
 class UniqueEntryValidator(Protocol, Generic[E]):
@@ -93,7 +103,9 @@ class TypedRegistry(Generic[E]):
     ) -> None:
         self._entries = {}
         self._default_variance = default_variance
-        self._attribute_filterer = attribute_filterer
+        self._attribute_filterer = (
+            attribute_filterer or DefaultAttributeFilterer()
+        )
         self._unique_validator = (
             unique_validator or DefaultUniqueEntryValidator()
         )

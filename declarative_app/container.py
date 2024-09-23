@@ -53,14 +53,6 @@ def _resolve_instance_name(value: Any):
     )
 
 
-class ContainerAttributeFilterer(AttributeFilterer[InstanceWrapper]):
-
-    def match_entry_attributes(
-        self, entry: InstanceWrapper, attributes: AttributeSet
-    ) -> bool:
-        return entry.attributes.issuperset(attributes)
-
-
 class ContainerUniqueEntryValidator(UniqueEntryValidator[InstanceWrapper]):
 
     def validate_uniqueness(
@@ -89,13 +81,17 @@ class Container:
     def __init__(
         self,
         name: str | None = None,
+        *,
+        attribute_filterer: AttributeFilterer | None = None,
+        unique_validator: UniqueEntryValidator | None = None,
         default_variance: VarianceType = "covariant",
     ):
         self._name = name or hex(self.__hash__())
         self._mapping_by_type = TypedRegistry(
             default_variance=default_variance,
-            attribute_filterer=ContainerAttributeFilterer(),
-            unique_validator=ContainerUniqueEntryValidator(),
+            attribute_filterer=attribute_filterer,
+            unique_validator=unique_validator
+            or ContainerUniqueEntryValidator(),
         )
         self._mapping_by_name = {}
         self._default_variance = default_variance

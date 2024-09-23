@@ -4,6 +4,7 @@ from dataclasses import dataclass
 from functools import partial, wraps
 from types import FrameType, ModuleType
 from typing import (
+    Annotated,
     Any,
     Awaitable,
     Callable,
@@ -13,6 +14,7 @@ from typing import (
     ParamSpec,
     TypeAlias,
     TypeVar,
+    get_origin,
     get_type_hints,
 )
 
@@ -24,6 +26,7 @@ from declarative_app.registry import (
     Entry,
     Key,
     TypedRegistry,
+    UniqueEntryValidator,
 )
 from declarative_app.types import get_type
 
@@ -51,7 +54,7 @@ class ConstructRule(Entry, Generic[T]):
     is_async: bool
     cannonical_name: str
     output_type: type[T]
-    output_attributes: AttributeSet
+    attributes: AttributeSet
     parameter_types: ParameterTypes
 
     @property
@@ -77,7 +80,7 @@ def _make_rule(
         is_async=is_async,
         cannonical_name=canonical_name,
         output_type=output_type,
-        output_attributes=frozenset(output_attributes),
+        attributes=frozenset(output_attributes),
         parameter_types=parameter_types,
     )
 
@@ -102,10 +105,12 @@ def _ensure_type_annotation(
 ) -> type:
     if type_annotation is None:
         raise raise_type(f"{name} is missing a type annotation.")
-    # if not isinstance(type_annotation, type):
-    #     raise raise_type(
-    #         f"The annotation for {name} must be a type, got {type_annotation} of type {type(type_annotation)}."
-    #     )
+    if not isinstance(type_annotation, type):
+        origin = get_origin(type_annotation)
+        if origin is not Annotated:
+            raise raise_type(
+                f"The annotation for {name} must be a type, got {type_annotation} of type {type(type_annotation)}."
+            )
     return type_annotation
 
 
@@ -225,14 +230,6 @@ class DuplicateRuleError(RuleError):
         )
 
 
-class RuleAttributeFilterer(AttributeFilterer[ConstructRule[T]]):
-
-    def match_entry_attributes(
-        self, entry: ConstructRule[T], attributes: AttributeSet
-    ) -> bool:
-        return entry.output_attributes.issuperset(attributes)
-
-
 class RuleRegistry:
 
     __slots__ = ("_rules", "_default_variance")
@@ -242,12 +239,16 @@ class RuleRegistry:
     def __init__(
         self,
         rules: Iterable[ConstructRule] | None = None,
+        *,
+        attribute_filterer: AttributeFilterer | None = None,
+        unique_validator: UniqueEntryValidator | None = None,
         default_variance: VarianceType = "covariant",
     ) -> None:
         self._rules = TypedRegistry(
             rules,
             default_variance=default_variance,
-            attribute_filterer=RuleAttributeFilterer(),
+            attribute_filterer=attribute_filterer,
+            unique_validator=unique_validator,
         )
         self._default_variance = default_variance
 
