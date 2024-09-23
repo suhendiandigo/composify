@@ -2,7 +2,7 @@ from dataclasses import dataclass
 
 from pytest import raises
 
-from composify.blueprint import CyclicDependencyError, FailedToResolveError
+from composify.errors import CyclicDependencyError, FailedToResolveError
 from composify.rules import collect_rules, rule
 from tests.utils import create_rule_resolver
 

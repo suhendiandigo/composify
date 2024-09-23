@@ -2,7 +2,8 @@ from dataclasses import dataclass
 from typing import Any, Generic, Iterable, Protocol, TypeVar
 
 from composify.constructor import Constructor
-from composify.container import Container, InstanceNotFoundError
+from composify.container import Container
+from composify.errors import InstanceNotFoundError
 from composify.rules import RuleRegistry
 
 __all__ = [
@@ -70,7 +71,7 @@ class RuleBasedConstructorProvider(ConstructorProvider):
             return
         for rule in rules:
             yield Constructor(
-                source=f"rule::{rule.cannonical_name}",
+                source=f"rule::{rule.canonical_name}",
                 constructor=rule.function,
                 is_async=rule.is_async,
                 output_type=type_,

@@ -3,7 +3,7 @@ from typing import Annotated
 
 import pytest
 
-from composify.blueprint import FailedToResolveError
+from composify.errors import FailedToResolveError
 from composify.metadata.qualifiers import DisallowSubclass
 from composify.rules import rule
 from tests.utils import blueprint, compare_blueprints, create_rule_resolver

@@ -52,7 +52,7 @@ ParameterTypes: TypeAlias = tuple[ParameterType, ...]
 class ConstructRule(Entry, Generic[T]):
     function: RuleFunctionType
     is_async: bool
-    cannonical_name: str
+    canonical_name: str
     output_type: type[T]
     attributes: AttributeSet
     parameter_types: ParameterTypes
@@ -63,7 +63,7 @@ class ConstructRule(Entry, Generic[T]):
 
     @property
     def name(self) -> str:
-        return self.cannonical_name
+        return self.canonical_name
 
 
 def _make_rule(
@@ -78,7 +78,7 @@ def _make_rule(
     return ConstructRule(
         func,
         is_async=is_async,
-        cannonical_name=canonical_name,
+        canonical_name=canonical_name,
         output_type=output_type,
         attributes=AttributeSet(output_attributes),
         parameter_types=parameter_types,

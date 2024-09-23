@@ -4,6 +4,7 @@ from bisect import insort
 from dataclasses import dataclass
 from typing import Generic, Iterable, TypeAlias, TypeVar
 
+from composify.errors import DuplicatedEntryError
 from composify.metadata.attributes import AttributeSet, collect_attributes
 from composify.metadata.qualifiers import (
     DisallowSubclass,
@@ -33,20 +34,6 @@ class Entry(ABC):
 E = TypeVar("E", bound=Entry)
 
 
-class RegistryError(Exception):
-    pass
-
-
-class DuplicatedEntryError(RegistryError, Generic[E]):
-
-    def __init__(self, to_add: E, existing: E) -> None:
-        self.to_add = to_add
-        self.existing = existing
-        super().__init__(
-            f"Entry {to_add!r} conflict with existing entry {existing!r}"
-        )
-
-
 def _entry_ordering(entry: Entry) -> int:
     return len(entry.key.mro())
 
@@ -60,7 +47,7 @@ class FilteringContext:
 
 class EntriesFilterer(Protocol, Generic[E]):
 
-    def fitler_entries(
+    def filter_entries(
         self, entries: Iterable[E], context: FilteringContext
     ) -> Iterable[E]:
         raise NotImplementedError()
@@ -71,7 +58,7 @@ _DEFAULT_DISALLOW_SUBCLASS = DisallowSubclass(False)
 
 class DefaultEntriesFilterer(EntriesFilterer[E]):
 
-    def fitler_entries(
+    def filter_entries(
         self, entries: Iterable[E], context: FilteringContext
     ) -> Iterable[E]:
         if context.attributes and (
@@ -172,7 +159,7 @@ class TypedRegistry(Generic[E]):
     def _filter_entries(self, key: Key, entries: Iterable[E]) -> Iterable[E]:
         if self._entries_filterer is None:
             return entries
-        return self._entries_filterer.fitler_entries(
+        return self._entries_filterer.filter_entries(
             entries,
             FilteringContext(
                 key=key,

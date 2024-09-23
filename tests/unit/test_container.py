@@ -3,10 +3,10 @@ from typing import Annotated
 
 from pytest import raises
 
-from composify.container import (
+from composify.container import Container
+from composify.errors import (
     AmbiguousInstanceError,
     ConflictingInstanceNameError,
-    Container,
     InstanceNotFoundError,
     MultiplePrimaryInstanceError,
 )

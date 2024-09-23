@@ -2,6 +2,12 @@ from dataclasses import dataclass, field
 from typing import Generic, Iterable, TypeAlias, TypeVar
 
 from composify.constructor import Constructor, ConstructorFunction
+from composify.errors import (
+    CyclicDependencyError,
+    FailedToResolveError,
+    NoConstructorError,
+    TracedTypeConstructionResolutionError,
+)
 from composify.provider import ConstructorProvider
 
 T = TypeVar("T")
@@ -10,64 +16,7 @@ T = TypeVar("T")
 __all__ = [
     "Blueprint",
     "BlueprintResolver",
-    "ResolverError",
-    "TypeConstructionResolutionError",
-    "TracedTypeConstructionResolutionError",
-    "NoConstructorError",
-    "CyclicDependencyError",
-    "FailedToResolveError",
 ]
-
-
-class ResolverError(Exception):
-    pass
-
-
-class TypeConstructionResolutionError(ResolverError):
-
-    def __init__(self, type_: type, msg: str) -> None:
-        super().__init__(msg)
-        self.type_ = type_
-
-
-Trace: TypeAlias = tuple[str, str, type]
-Traces: TypeAlias = tuple[Trace, ...]
-
-
-class TracedTypeConstructionResolutionError(TypeConstructionResolutionError):
-
-    def __init__(self, type_: type, traces: Traces, msg: str) -> None:
-        super().__init__(type_, msg)
-        self.traces = traces
-
-
-class NoConstructorError(TracedTypeConstructionResolutionError):
-    def __init__(self, type_: type, traces: Traces) -> None:
-        super().__init__(
-            type_, traces, f"Unable to find constructor for {type_!r}"
-        )
-
-
-class CyclicDependencyError(TracedTypeConstructionResolutionError):
-    def __init__(self, type_: type, traces: Traces) -> None:
-        super().__init__(
-            type_, traces, f"Cyclic dependency found for {type_!r}"
-        )
-
-
-class FailedToResolveError(TracedTypeConstructionResolutionError):
-    def __init__(
-        self,
-        type_: type,
-        traces: Traces,
-        errors: Iterable[TracedTypeConstructionResolutionError],
-    ) -> None:
-        self.errors = errors
-        super().__init__(
-            type_,
-            traces,
-            f"Failed to resolve for {type_!r}",
-        )
 
 
 @dataclass(frozen=True)
