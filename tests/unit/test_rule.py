@@ -2,7 +2,7 @@ from dataclasses import dataclass
 
 import pytest
 
-from declarative_app.rules import as_rule, collect_rules, rule
+from composify.rules import as_rule, collect_rules, rule
 
 
 @dataclass(frozen=True)

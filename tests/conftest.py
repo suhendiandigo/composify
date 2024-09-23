@@ -1,8 +1,8 @@
 from pytest import fixture
 
-from declarative_app.blueprint import Blueprint, BlueprintResolver
-from declarative_app.container import Container
-from declarative_app.provider import ContainerInstanceProvider
+from composify.blueprint import Blueprint, BlueprintResolver
+from composify.container import Container
+from composify.provider import ContainerInstanceProvider
 from tests.utils import find_difference
 
 

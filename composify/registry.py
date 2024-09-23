@@ -4,17 +4,14 @@ from bisect import insort
 from dataclasses import dataclass
 from typing import Generic, Iterable, TypeAlias, TypeVar
 
-from declarative_app.metadata.attributes import (
-    AttributeSet,
-    collect_attributes,
-)
-from declarative_app.metadata.qualifiers import (
+from composify.metadata.attributes import AttributeSet, collect_attributes
+from composify.metadata.qualifiers import (
     DisallowSubclass,
     QualifierSet,
     VarianceType,
     collect_qualifiers,
 )
-from declarative_app.types import get_type, resolve_base_types
+from composify.types import get_type, resolve_base_types
 
 Key: TypeAlias = type
 

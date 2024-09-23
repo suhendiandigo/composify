@@ -3,8 +3,8 @@ from dataclasses import dataclass
 
 import pytest
 
-from declarative_app.builder import Builder
-from declarative_app.rules import rule
+from composify.builder import Builder
+from composify.rules import rule
 from tests.utils import blueprint, static
 
 

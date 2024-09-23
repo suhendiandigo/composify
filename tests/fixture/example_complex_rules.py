@@ -1,6 +1,6 @@
 from dataclasses import dataclass
 
-from declarative_app.rules import collect_rules, rule
+from composify.rules import collect_rules, rule
 
 
 @dataclass(frozen=True)

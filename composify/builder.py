@@ -1,7 +1,7 @@
 import asyncio
 from typing import Any, Protocol, TypeVar
 
-from declarative_app.blueprint import Blueprint
+from composify.blueprint import Blueprint
 
 __all__ = [
     "Builder",

@@ -8,7 +8,7 @@ from fixture.example_complex_rules import (
     rules,
 )
 
-from declarative_app.provider import ContainerInstanceProvider
+from composify.provider import ContainerInstanceProvider
 from tests.utils import (
     blueprint,
     compare_blueprints,

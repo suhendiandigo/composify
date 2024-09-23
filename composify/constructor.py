@@ -1,7 +1,7 @@
 from dataclasses import dataclass
 from typing import Awaitable, Callable, Generic, ParamSpec, TypeAlias, TypeVar
 
-from declarative_app.rules import ParameterTypes
+from composify.rules import ParameterTypes
 
 __all__ = [
     "Constructor",

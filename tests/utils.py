@@ -2,14 +2,14 @@ import asyncio
 from itertools import zip_longest
 from typing import Any, Iterable
 
-from declarative_app.blueprint import Blueprint, BlueprintResolver
-from declarative_app.constructor import ConstructorFunction
-from declarative_app.provider import (
+from composify.blueprint import Blueprint, BlueprintResolver
+from composify.constructor import ConstructorFunction
+from composify.provider import (
     ConstructorProvider,
     RuleBasedConstructorProvider,
     Static,
 )
-from declarative_app.rules import ConstructRule, RuleRegistry, as_rule
+from composify.rules import ConstructRule, RuleRegistry, as_rule
 
 
 def create_resolver(*factories: ConstructorProvider):

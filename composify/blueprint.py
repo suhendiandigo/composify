@@ -1,8 +1,8 @@
 from dataclasses import dataclass, field
 from typing import Generic, Iterable, TypeAlias, TypeVar
 
-from declarative_app.constructor import Constructor, ConstructorFunction
-from declarative_app.provider import ConstructorProvider
+from composify.constructor import Constructor, ConstructorFunction
+from composify.provider import ConstructorProvider
 
 T = TypeVar("T")
 

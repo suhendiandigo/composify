@@ -1,9 +1,9 @@
 from dataclasses import dataclass
 from typing import Any, Generic, Iterable, Protocol, TypeVar
 
-from declarative_app.constructor import Constructor
-from declarative_app.container import Container, InstanceNotFoundError
-from declarative_app.rules import RuleRegistry
+from composify.constructor import Constructor
+from composify.container import Container, InstanceNotFoundError
+from composify.rules import RuleRegistry
 
 __all__ = [
     "ConstructorProvider",

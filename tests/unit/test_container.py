@@ -3,14 +3,14 @@ from typing import Annotated
 
 from pytest import raises
 
-from declarative_app.container import (
+from composify.container import (
     AmbiguousInstanceError,
     ConflictingInstanceNameError,
     Container,
     InstanceNotFoundError,
     MultiplePrimaryInstanceError,
 )
-from declarative_app.metadata import Name
+from composify.metadata import Name
 
 
 @dataclass(frozen=True)

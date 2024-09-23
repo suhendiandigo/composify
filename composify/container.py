@@ -2,17 +2,17 @@ from collections import abc
 from dataclasses import dataclass
 from typing import Any, Generic, Iterable, Type, TypeVar
 
-from declarative_app.metadata import Name, collect_attributes
-from declarative_app.metadata.attributes import AttributeSet
-from declarative_app.metadata.qualifiers import VarianceType
-from declarative_app.registry import (
+from composify.metadata import Name, collect_attributes
+from composify.metadata.attributes import AttributeSet
+from composify.metadata.qualifiers import VarianceType
+from composify.registry import (
     EntriesFilterer,
     EntriesValidator,
     Entry,
     Key,
     TypedRegistry,
 )
-from declarative_app.types import get_type
+from composify.types import get_type
 
 E = TypeVar("E")
 

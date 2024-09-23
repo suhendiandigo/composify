@@ -3,9 +3,9 @@ from typing import Annotated
 
 import pytest
 
-from declarative_app.blueprint import FailedToResolveError
-from declarative_app.metadata.qualifiers import DisallowSubclass
-from declarative_app.rules import rule
+from composify.blueprint import FailedToResolveError
+from composify.metadata.qualifiers import DisallowSubclass
+from composify.rules import rule
 from tests.utils import blueprint, compare_blueprints, create_rule_resolver
 
 

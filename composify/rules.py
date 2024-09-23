@@ -18,17 +18,17 @@ from typing import (
     get_type_hints,
 )
 
-from declarative_app.metadata import BaseAttributeMetadata, collect_attributes
-from declarative_app.metadata.attributes import AttributeSet
-from declarative_app.metadata.qualifiers import VarianceType
-from declarative_app.registry import (
+from composify.metadata import BaseAttributeMetadata, collect_attributes
+from composify.metadata.attributes import AttributeSet
+from composify.metadata.qualifiers import VarianceType
+from composify.registry import (
     EntriesFilterer,
     EntriesValidator,
     Entry,
     Key,
     TypedRegistry,
 )
-from declarative_app.types import get_type
+from composify.types import get_type
 
 __all__ = ["rule", "as_rule"]
 

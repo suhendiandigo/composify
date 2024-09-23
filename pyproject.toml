@@ -1,5 +1,5 @@
 [project]
-name = "declarative_app"
+name = "composify"
 requires-python = ">=3.9"
 dynamic = ["version"]
 readme = "README.md"
@@ -10,7 +10,7 @@ maintainers = [
   {name = "Suhendi Andigo", email = "suhendiandigo@gmail.com"},
 ]
 version = "0.1.0"
-description = "Library to build python apps declaratively"
+description = "Library to help compose python apps declaratively."
 dependencies = []
 license = {text = "MIT"}
 
