@@ -18,15 +18,15 @@ from typing import (
     get_type_hints,
 )
 
-from declarative_app.metadata import BaseAttributeMetadata, get_attributes
+from declarative_app.metadata import BaseAttributeMetadata, collect_attributes
 from declarative_app.metadata.attributes import AttributeSet
 from declarative_app.metadata.qualifiers import VarianceType
 from declarative_app.registry import (
-    AttributeFilterer,
+    EntriesFilterer,
+    EntriesValidator,
     Entry,
     Key,
     TypedRegistry,
-    UniqueEntryValidator,
 )
 from declarative_app.types import get_type
 
@@ -80,7 +80,7 @@ def _make_rule(
         is_async=is_async,
         cannonical_name=canonical_name,
         output_type=output_type,
-        attributes=frozenset(output_attributes),
+        attributes=AttributeSet(output_attributes),
         parameter_types=parameter_types,
     )
 
@@ -125,7 +125,7 @@ def rule_decorator(
         name=f"{func_id} return",
         raise_type=MissingReturnTypeAnnotation,
     )
-    metadata = get_attributes(return_type)
+    metadata = collect_attributes(return_type)
     return_type = get_type(return_type)
 
     parameter_types = tuple(
@@ -236,14 +236,14 @@ class RuleRegistry:
         self,
         rules: Iterable[ConstructRule] | None = None,
         *,
-        attribute_filterer: AttributeFilterer | None = None,
-        unique_validator: UniqueEntryValidator | None = None,
+        attribute_filterer: EntriesFilterer | None = None,
+        unique_validator: EntriesValidator | None = None,
         default_variance: VarianceType = "covariant",
     ) -> None:
         self._rules = TypedRegistry(
             rules,
             default_variance=default_variance,
-            attribute_filterer=attribute_filterer,
+            entries_filterer=attribute_filterer,
             unique_validator=unique_validator,
         )
         self._default_variance = default_variance

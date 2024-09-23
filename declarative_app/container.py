@@ -2,15 +2,15 @@ from collections import abc
 from dataclasses import dataclass
 from typing import Any, Generic, Iterable, Type, TypeVar
 
-from declarative_app.metadata import Name, get_attributes
-from declarative_app.metadata.attributes import AttributeSet, resolve_name
+from declarative_app.metadata import Name, collect_attributes
+from declarative_app.metadata.attributes import AttributeSet
 from declarative_app.metadata.qualifiers import VarianceType
 from declarative_app.registry import (
-    AttributeFilterer,
+    EntriesFilterer,
+    EntriesValidator,
     Entry,
     Key,
     TypedRegistry,
-    UniqueEntryValidator,
 )
 from declarative_app.types import get_type
 
@@ -42,7 +42,7 @@ class InstanceWrapper(Entry, Generic[E]):
         return self.instance_name
 
     def __repr__(self) -> str:
-        return f"Instance(name={self.name}, value={self.instance!r})"
+        return f"Instance(name={self.name}, value={self.instance!r}, attributes={self.attributes!r})"
 
 
 def _resolve_instance_name(value: Any):
@@ -53,9 +53,9 @@ def _resolve_instance_name(value: Any):
     )
 
 
-class ContainerUniqueEntryValidator(UniqueEntryValidator[InstanceWrapper]):
+class ContainerUniqueEntryValidator(EntriesValidator[InstanceWrapper]):
 
-    def validate_uniqueness(
+    def validate_entries(
         self, entry: InstanceWrapper, others: Iterable[InstanceWrapper]
     ) -> None:
         for other in others:
@@ -82,14 +82,14 @@ class Container:
         self,
         name: str | None = None,
         *,
-        attribute_filterer: AttributeFilterer | None = None,
-        unique_validator: UniqueEntryValidator | None = None,
+        attribute_filterer: EntriesFilterer | None = None,
+        unique_validator: EntriesValidator | None = None,
         default_variance: VarianceType = "covariant",
     ):
         self._name = name or hex(self.__hash__())
         self._mapping_by_type = TypedRegistry(
             default_variance=default_variance,
-            attribute_filterer=attribute_filterer,
+            entries_filterer=attribute_filterer,
             unique_validator=unique_validator
             or ContainerUniqueEntryValidator(),
         )
@@ -113,10 +113,10 @@ class Container:
         """
         type_ = instance.__class__
 
-        attributes = get_attributes(type_)
+        attributes = collect_attributes(type_)
         instance_type = get_type(type_)
 
-        name = name or resolve_name(attributes)
+        name = name or attributes.get(Name)
 
         if name is None:
             i = 0
@@ -134,7 +134,7 @@ class Container:
             instance,
             instance_type=instance_type,
             instance_name=name,
-            attributes=frozenset(tuple(attributes) + (Name(name),)),
+            attributes=AttributeSet(tuple(attributes) + (Name(name),)),
             is_primary=is_primary,
         )
 

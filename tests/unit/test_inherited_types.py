@@ -4,7 +4,7 @@ from typing import Annotated
 import pytest
 
 from declarative_app.blueprint import FailedToResolveError
-from declarative_app.metadata.qualifiers import Variance
+from declarative_app.metadata.qualifiers import DisallowSubclass
 from declarative_app.rules import rule
 from tests.utils import blueprint, compare_blueprints, create_rule_resolver
 
@@ -35,52 +35,104 @@ def create_c() -> C:
 
 
 @pytest.mark.asyncio_cooperative
-async def test_covariant():
+async def test_subclasses():
     resolver = create_rule_resolver(create_c)
 
     compare_blueprints(
-        resolver.resolve(Annotated[A, Variance("covariant")]),
+        resolver.resolve(A),
         [blueprint(create_c)],
     )
 
     with pytest.raises(FailedToResolveError):
-        resolver.resolve(Annotated[B, Variance("covariant")])
+        resolver.resolve(B)
 
     compare_blueprints(
-        resolver.resolve(Annotated[C, Variance("covariant")]),
+        resolver.resolve(C),
         [blueprint(create_c)],
     )
 
 
 @pytest.mark.asyncio_cooperative
-async def test_contravariant():
-    resolver = create_rule_resolver(create_a)
-
-    compare_blueprints(
-        resolver.resolve(Annotated[A, Variance("contravariant")]),
-        [blueprint(create_a)],
-    )
+async def test_disallowed_subclasses():
+    resolver = create_rule_resolver(create_c)
 
     with pytest.raises(FailedToResolveError):
-        list(resolver.resolve(Annotated[B, Variance("contravariant")]))
+        resolver.resolve(Annotated[A, DisallowSubclass()])
+
+    with pytest.raises(FailedToResolveError):
+        resolver.resolve(B)
 
     compare_blueprints(
-        resolver.resolve(Annotated[C, Variance("contravariant")]),
-        [blueprint(create_a)],
+        resolver.resolve(C),
+        [blueprint(create_c)],
     )
 
 
 @pytest.mark.asyncio_cooperative
-async def test_invariant():
+async def test_allowed_subclasses():
     resolver = create_rule_resolver(create_c)
 
-    with pytest.raises(FailedToResolveError):
-        list(resolver.resolve(Annotated[A, Variance("invariant")]))
-
-    with pytest.raises(FailedToResolveError):
-        list(resolver.resolve(Annotated[B, Variance("invariant")]))
-
     compare_blueprints(
-        resolver.resolve(Annotated[C, Variance("invariant")]),
+        resolver.resolve(Annotated[A, DisallowSubclass(False)]),
         [blueprint(create_c)],
     )
+
+    with pytest.raises(FailedToResolveError):
+        resolver.resolve(B)
+
+    compare_blueprints(
+        resolver.resolve(C),
+        [blueprint(create_c)],
+    )
+
+
+# @pytest.mark.asyncio_cooperative
+# async def test_covariant():
+#     resolver = create_rule_resolver(create_c)
+
+#     compare_blueprints(
+#         resolver.resolve(Annotated[A, Variance("covariant")]),
+#         [blueprint(create_c)],
+#     )
+
+#     with pytest.raises(FailedToResolveError):
+#         resolver.resolve(Annotated[B, Variance("covariant")])
+
+#     compare_blueprints(
+#         resolver.resolve(Annotated[C, Variance("covariant")]),
+#         [blueprint(create_c)],
+#     )
+
+
+# @pytest.mark.asyncio_cooperative
+# async def test_contravariant():
+#     resolver = create_rule_resolver(create_a)
+
+#     compare_blueprints(
+#         resolver.resolve(Annotated[A, Variance("contravariant")]),
+#         [blueprint(create_a)],
+#     )
+
+#     with pytest.raises(FailedToResolveError):
+#         list(resolver.resolve(Annotated[B, Variance("contravariant")]))
+
+#     compare_blueprints(
+#         resolver.resolve(Annotated[C, Variance("contravariant")]),
+#         [blueprint(create_a)],
+#     )
+
+
+# @pytest.mark.asyncio_cooperative
+# async def test_invariant():
+#     resolver = create_rule_resolver(create_c)
+
+#     with pytest.raises(FailedToResolveError):
+#         list(resolver.resolve(Annotated[A, Variance("invariant")]))
+
+#     with pytest.raises(FailedToResolveError):
+#         list(resolver.resolve(Annotated[B, Variance("invariant")]))
+
+#     compare_blueprints(
+#         resolver.resolve(Annotated[C, Variance("invariant")]),
+#         [blueprint(create_c)],
+#     )

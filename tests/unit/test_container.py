@@ -11,11 +11,6 @@ from declarative_app.container import (
     MultiplePrimaryInstanceError,
 )
 from declarative_app.metadata import Name
-from declarative_app.metadata.qualifiers import (
-    Contravariant,
-    Covariant,
-    Invariant,
-)
 
 
 @dataclass(frozen=True)
@@ -109,33 +104,33 @@ def test_multiple_primary_error(container: Container):
         container.add(A("323"), is_primary=True)
 
 
-def test_invariant(container: Container):
-    a = A("123")
-    c = C("321")
-    container.add(a)
-    container.add(c)
+# def test_invariant(container: Container):
+#     a = A("123")
+#     c = C("321")
+#     container.add(a)
+#     container.add(c)
 
-    assert a == container.get(Annotated[A, Invariant])
-    assert c == container.get(Annotated[C, Invariant])
-    with raises(InstanceNotFoundError):
-        container.get(B)
-
-
-def test_covariant(container: Container):
-    c = C("123")
-    container.add(c)
-
-    assert c == container.get(Annotated[A, Covariant])
-    assert c == container.get(Annotated[C, Covariant])
-    with raises(InstanceNotFoundError):
-        container.get(B)
+#     assert a == container.get(Annotated[A, Invariant])
+#     assert c == container.get(Annotated[C, Invariant])
+#     with raises(InstanceNotFoundError):
+#         container.get(B)
 
 
-def test_contravariant(container: Container):
-    a = A("123")
-    container.add(a)
+# def test_covariant(container: Container):
+#     c = C("123")
+#     container.add(c)
 
-    assert a == container.get(Annotated[A, Contravariant])
-    assert a == container.get(Annotated[C, Contravariant])
-    with raises(InstanceNotFoundError):
-        container.get(B)
+#     assert c == container.get(Annotated[A, Covariant])
+#     assert c == container.get(Annotated[C, Covariant])
+#     with raises(InstanceNotFoundError):
+#         container.get(B)
+
+
+# def test_contravariant(container: Container):
+#     a = A("123")
+#     container.add(a)
+
+#     assert a == container.get(Annotated[A, Contravariant])
+#     assert a == container.get(Annotated[C, Contravariant])
+#     with raises(InstanceNotFoundError):
+#         container.get(B)

@@ -1,33 +1,20 @@
-from dataclasses import dataclass
-from typing import Any, TypeAlias
-
-from .base import SLOTS, BaseMetadata, MetadataSet, _get_metadata
+from .base import BaseMetadata, MetadataSet, _collect_metadata
 
 
 class BaseAttributeMetadata(BaseMetadata):
     pass
 
 
-AttributeSet: TypeAlias = MetadataSet[BaseAttributeMetadata]
+class AttributeSet(MetadataSet[BaseAttributeMetadata]):
+    pass
 
 
-@dataclass(frozen=True, **SLOTS)
-class Name(BaseAttributeMetadata):
-    name: str
+def collect_attributes(type_: type) -> AttributeSet:
+    """Collect all annotated metadata that inherits BaseAttributeMetadata class as a frozenset."""
+    return _collect_metadata(type_, BaseAttributeMetadata, AttributeSet)
 
 
-def _is_attribute_instance(val: Any) -> bool:
-    return isinstance(val, BaseAttributeMetadata)
+class Name(str, BaseAttributeMetadata):
 
-
-def get_attributes(type_: type) -> AttributeSet:
-    return _get_metadata(type_, _is_attribute_instance)
-
-
-def resolve_name(
-    attributes: AttributeSet,
-) -> str | None:
-    for attribute in attributes:
-        if isinstance(attribute, Name):
-            return attribute.name
-    return None
+    def __repr__(self) -> str:
+        return f"Name({self})"
