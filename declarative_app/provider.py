@@ -50,7 +50,7 @@ class ContainerInstanceProvider(ConstructorProvider):
                 constructor=Static(wrapper.instance),
                 is_async=False,
                 output_type=type_,
-                dependencies=frozenset(),
+                dependencies=tuple(),
             )
         except InstanceNotFoundError:
             pass

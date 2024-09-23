@@ -52,8 +52,8 @@ def blueprint(
         constructor,
         is_async=asyncio.iscoroutinefunction(constructor),
         output_type=type,  # Not used for building
-        dependencies=tuple(dependencies.items()),
-        chain_length=0,  # Not used for building
+        dependencies=frozenset(dependencies.items()),
+        priority=tuple(),  # Not used for building
     )
 
 
@@ -65,6 +65,28 @@ def static(
         Static(value),
         is_async=False,
         output_type=type,  # Not used for building
-        dependencies=tuple(),
-        chain_length=0,  # Not used for building
+        dependencies=frozenset(),
+        priority=tuple(),  # Not used for building
     )
+
+
+def _find_difference(
+    result: Blueprint, expected: Blueprint, path: tuple
+) -> tuple | None:
+    if (
+        result.constructor != expected.constructor
+        or result.is_async != expected.is_async
+    ):
+        return path
+    r_depends = tuple(sorted(result.dependencies))
+    e_depends = tuple(sorted(expected.dependencies))
+    if len(r_depends) != len(e_depends):
+        return path
+    for (r_name, r_depend), (e_name, e_depend) in zip(r_depends, e_depends):
+        if r_name != e_name:
+            return path
+        return _find_difference(r_depend, e_depend, path + (r_name,))
+
+
+def find_difference(result: Blueprint, expected: Blueprint) -> tuple | None:
+    return _find_difference(result, expected, tuple())

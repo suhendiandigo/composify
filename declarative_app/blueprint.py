@@ -74,25 +74,25 @@ class FailedToResolveError(TracedTypeConstructionResolutionError):
 class Blueprint(Generic[T]):
     """Similar to Constructor but contains another Blueprint as the dependencies."""
 
-    source: str = field(hash=False)
+    source: str = field(hash=False, compare=False)
     constructor: ConstructorFunction[T]
-    is_async: bool = field(hash=False)
-    output_type: type[T] = field(hash=False)
-    dependencies: tuple[tuple[str, "Blueprint"], ...]
-    chain_length: int = field(hash=False)
+    is_async: bool = field(hash=False, compare=False)
+    output_type: type[T] = field(hash=False, compare=False)
+    dependencies: frozenset[tuple[str, "Blueprint"]]
+    priority: tuple[int, ...] = field(hash=False, compare=False)
 
 
 _Parameter: TypeAlias = tuple[str, Blueprint]
-_Parameters: TypeAlias = tuple[_Parameter, ...]
+_Parameters: TypeAlias = frozenset[_Parameter]
 
 
 def _permutate_parameters(
     level: int,
-    parameters: _Parameters,
+    parameters: tuple[_Parameter, ...],
     rest_of_parameters: tuple[tuple[str, tuple[Blueprint, ...]], ...],
 ):
     if not rest_of_parameters:
-        yield parameters, level
+        yield frozenset(parameters), level
     else:
         name, values = rest_of_parameters[0]
         rest_of_parameters = rest_of_parameters[1:]
@@ -102,10 +102,9 @@ def _permutate_parameters(
 
 
 def permutate_parameters(
-    parameters: dict[str, tuple[Blueprint, ...]]
+    parameters: Iterable[tuple[str, tuple[Blueprint, ...]]]
 ) -> tuple[tuple[_Parameters, int], ...]:
-    values = tuple(parameters.items())
-    return _permutate_parameters(0, tuple(), values)
+    return _permutate_parameters(0, tuple(), tuple(parameters))
 
 
 ConstructorName: TypeAlias = str
@@ -151,6 +150,7 @@ class BlueprintResolver:
         target: type[T],
         name: str,
         plan: Constructor[T],
+        plan_order: int,
         trace: Tracing,
     ) -> Iterable[Blueprint[T]]:
         curr_trace = plan.source, name, target
@@ -158,11 +158,17 @@ class BlueprintResolver:
         if curr_trace in trace.traces:
             raise CyclicDependencyError(target, tracing.traces)
         if plan.dependencies:
-            parameters: dict[str, tuple[Blueprint, ...]] = {}
+            parameters: list[tuple[str, tuple[Blueprint, ...]]] = []
             for dependency_name, dependency in plan.dependencies:
-                parameters[dependency_name] = tuple(
-                    self._resolve(dependency, dependency_name, tracing)
+                parameters.append(
+                    (
+                        dependency_name,
+                        tuple(
+                            self._resolve(dependency, dependency_name, tracing)
+                        ),
+                    )
                 )
+            i = 0
             for parameter_permutation, level in permutate_parameters(
                 parameters
             ):
@@ -172,16 +178,17 @@ class BlueprintResolver:
                     is_async=plan.is_async,
                     output_type=plan.output_type,
                     dependencies=parameter_permutation,
-                    chain_length=level,
+                    priority=(level, plan_order, i),
                 )
+                i += 1
         else:
             yield Blueprint(
                 source=plan.source,
                 constructor=plan.constructor,
                 is_async=plan.is_async,
                 output_type=plan.output_type,
-                dependencies=tuple(),
-                chain_length=0,
+                dependencies=frozenset(),
+                priority=(0, plan_order),
             )
 
     def _resolve(
@@ -192,10 +199,10 @@ class BlueprintResolver:
             raise NoConstructorError(target, trace.traces)
         errors: list[TracedTypeConstructionResolutionError] = []
         constructions: list[Blueprint[T]] = []
-        for plan in plans:
+        for plan_order, plan in enumerate(plans):
             try:
                 constructions.extend(
-                    self._resolve_plan(target, name, plan, trace)
+                    self._resolve_plan(target, name, plan, plan_order, trace)
                 )
             except (NoConstructorError, CyclicDependencyError) as exc:
                 errors.append(exc)
@@ -210,7 +217,7 @@ class BlueprintResolver:
         try:
             return sorted(
                 self._resolve(target, "__root__", tracing),
-                key=lambda x: x.chain_length,
+                key=lambda x: x.priority,
             )
         except (NoConstructorError, CyclicDependencyError) as exc:
             raise FailedToResolveError(target, tracing.traces, [exc])

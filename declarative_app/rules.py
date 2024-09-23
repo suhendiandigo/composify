@@ -45,7 +45,7 @@ F = TypeVar("F", bound=RuleFunctionType)
 RULE_ATTR = "__rule__"
 
 ParameterType: TypeAlias = tuple[str, type]
-ParameterTypes: TypeAlias = frozenset[ParameterType]
+ParameterTypes: TypeAlias = tuple[ParameterType, ...]
 
 
 @dataclass(frozen=True)
@@ -128,7 +128,7 @@ def rule_decorator(
     metadata = get_attributes(return_type)
     return_type = get_type(return_type)
 
-    parameter_types = frozenset(
+    parameter_types = tuple(
         (
             parameter,
             _ensure_type_annotation(
