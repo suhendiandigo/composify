@@ -51,18 +51,26 @@ def _entry_ordering(entry: Entry) -> int:
 
 class AttributeFilterer(Protocol):
 
-    def match_entry_attributes(
-        self, entry: Entry, attributes: AttributeSet
-    ) -> bool:
+    def filter_entries_by_attributes(
+        self, entries: Iterable[Entry], attributes: AttributeSet
+    ):
         raise NotImplementedError()
 
 
 class DefaultAttributeFilterer(AttributeFilterer):
 
-    def match_entry_attributes(
-        self, entry: Entry, attributes: AttributeSet
-    ) -> bool:
-        return entry.attributes.issuperset(attributes)
+    def filter_entries_by_attributes(
+        self, entries: Iterable[Entry], attributes: AttributeSet
+    ):
+        if attributes and (
+            filtered := tuple(
+                entry
+                for entry in entries
+                if entry.attributes.issuperset(attributes)
+            )
+        ):
+            return filtered
+        return entries
 
 
 class UniqueEntryValidator(Protocol, Generic[E]):
@@ -166,18 +174,9 @@ class TypedRegistry(Generic[E]):
     ) -> tuple[E, ...]:
         if self._attribute_filterer is None:
             return entries
-        attributes = get_attributes(key)
-        if attributes and (
-            filtered := tuple(
-                entry
-                for entry in entries
-                if self._attribute_filterer.match_entry_attributes(
-                    entry, attributes
-                )
-            )
-        ):
-            return filtered
-        return entries
+        return self._attribute_filterer.filter_entries_by_attributes(
+            entries, attributes=get_attributes(key)
+        )
 
     def get(self, key: Key) -> tuple[E, ...]:
         type_ = get_type(key)
