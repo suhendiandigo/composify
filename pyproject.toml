@@ -48,4 +48,5 @@ pythonpath = [
 ]
 testpaths = [
     "tests/unit",
+    "tests/integration",
 ]

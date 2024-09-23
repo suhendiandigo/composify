@@ -1,43 +1,107 @@
 import asyncio
+from dataclasses import dataclass
 
 import pytest
-from fixture.example_complex_rules import Param, Result, rules
 
 from declarative_app.builder import Builder
-from declarative_app.provider import ContainerInstanceProvider
-from tests.utils import create_resolver, create_rule_plan_factory
+from declarative_app.rules import rule
+from tests.utils import blueprint, static
+
+
+@dataclass(frozen=True)
+class Value:
+    value: int
+
+
+@rule
+def double(param: Value) -> Value:
+    return Value(param.value * 2)
+
+
+@rule
+def quintuple(param: Value) -> Value:
+    return Value(param.value * 5)
+
+
+@rule
+def squared(param: Value) -> Value:
+    return Value(param.value**2)
 
 
 @pytest.mark.asyncio_cooperative
-async def test_construct(container):
-    resolver = create_resolver(
-        ContainerInstanceProvider(container),
-        create_rule_plan_factory(*rules),
+async def test_construct():
+    plan = blueprint(
+        double,
+        param=static(Value(5)),
     )
-    container.add(Param(5))
-    plans = list(resolver.resolve(Result))
     builder = Builder()
+    result = await builder.from_blueprint(plan)
+    assert result == Value(10)
+
+
+class ExecutionCounter:
+
+    def __init__(self) -> None:
+        self.execution = 0
+
+    def __call__(self, f):
+        def wrapper(*args, **kwargs):
+            self.execution += 1
+            return f(*args, **kwargs)
+
+        return wrapper
+
+
+@pytest.mark.asyncio_cooperative
+async def test_cached_concurrent_construct():
+    counter = ExecutionCounter()
+
+    double_ = counter(double)
+    quintuple_ = counter(quintuple)
+    squared_ = counter(squared)
+
+    testcases = {
+        blueprint(
+            double_,
+            param=static(Value(5)),
+        ): 10,
+        blueprint(
+            double_,
+            param=static(Value(5)),
+        ): 10,
+        blueprint(
+            quintuple_,
+            param=blueprint(
+                double_,
+                param=static(Value(5)),
+            ),
+        ): 50,
+        blueprint(
+            double_,
+            param=blueprint(
+                quintuple_,
+                param=static(Value(5)),
+            ),
+        ): 50,
+        blueprint(
+            squared_,
+            param=blueprint(
+                double_,
+                param=static(Value(5)),
+            ),
+        ): 100,
+    }
+    assert len(testcases) == 4
+
+    builder = Builder()
+
+    plans, expected_results = zip(*testcases.items())
+
     results = await asyncio.gather(
         *(builder.from_blueprint(plan) for plan in plans)
     )
-    for result in results:
-        assert isinstance(result, Result)
+    for result, expected_result in zip(results, expected_results):
+        assert isinstance(result, Value)
+        assert result.value == expected_result
 
-
-@pytest.mark.asyncio_cooperative
-async def test_concurrent_construct(container):
-    resolver = create_resolver(
-        ContainerInstanceProvider(container),
-        create_rule_plan_factory(*rules),
-    )
-    container.add(Param(5))
-    plans = list(resolver.resolve(Result))
-    builder = Builder()
-    plan = plans[0]
-    results = await asyncio.gather(
-        *(builder.from_blueprint(plan) for _ in range(4))
-    )
-    for result in results:
-        assert isinstance(result, Result)
-        assert result == results[0]
-        assert result.value == 25
+    assert counter.execution == 5

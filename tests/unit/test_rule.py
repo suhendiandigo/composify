@@ -1,13 +1,31 @@
-import pytest
-from fixture.example_rules import (
-    Param,
-    Result,
-    example_async_rule,
-    example_sync_rule,
-    rules,
-)
+from dataclasses import dataclass
 
-from declarative_app.rules import as_rule
+import pytest
+
+from declarative_app.rules import as_rule, collect_rules, rule
+
+
+@dataclass(frozen=True)
+class Param:
+    value: str
+
+
+@dataclass(frozen=True)
+class Result:
+    value: str
+
+
+@rule
+async def example_async_rule(param: Param) -> Result:
+    return Result(param.value)
+
+
+@rule
+def example_sync_rule(param: Param) -> Result:
+    return Result(param.value)
+
+
+rules = collect_rules()
 
 
 def test_collect_rules():

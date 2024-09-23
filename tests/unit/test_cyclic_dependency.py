@@ -20,12 +20,12 @@ class B:
     value: int
 
 
-@rule(return_rule=True)
+@rule
 def create_a(param: A) -> B:
     return B(param.value * 2)
 
 
-@rule(return_rule=True)
+@rule
 def create_b(param: B) -> A:
     return A(param.value * 2)
 
@@ -33,7 +33,7 @@ def create_b(param: B) -> A:
 rules = collect_rules()
 
 
-@rule(return_rule=True)
+@rule
 def default_a() -> A:
     return A(5)
 

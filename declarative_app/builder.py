@@ -45,24 +45,24 @@ class Builder:
         self._save_to = save_to
 
     async def from_blueprint(self, blueprint: Blueprint[T]) -> T:
-        if self._cache:
+        if self._cache is not None:
             value = self._cache.get(blueprint, None)
             if value is not None:
                 return await value
-        coroutine = self._from_blueprint(blueprint)
-        if self._cache:
+        coroutine = asyncio.Task(self._from_blueprint(blueprint))
+        if self._cache is not None:
             # We cache the coroutine instead of the result
             # This allows asynchronous requests to share the same coroutine
             self._cache[blueprint] = coroutine
         value = await coroutine
-        if self._save_to:
+        if self._save_to is not None:
             self._save_to[blueprint.output_type] = value
         return value
 
-    async def _from_blueprint(self, construction: Blueprint[T]) -> T:
+    async def _from_blueprint(self, blueprint: Blueprint[T]) -> T:
         parameter_name_coroutines = tuple(
             (name, self.from_blueprint(param))
-            for name, param in construction.dependencies
+            for name, param in blueprint.dependencies
         )
 
         names = tuple(p[0] for p in parameter_name_coroutines)
@@ -72,7 +72,7 @@ class Builder:
 
         parameters = {name: result for name, result in zip(names, results)}
 
-        if construction.is_async:
-            return await construction.constructor(**parameters)  # type: ignore[misc]
+        if blueprint.is_async:
+            return await blueprint.constructor(**parameters)  # type: ignore[misc]
         else:
-            return construction.constructor(**parameters)  # type: ignore[return-value]
+            return blueprint.constructor(**parameters)  # type: ignore[return-value]

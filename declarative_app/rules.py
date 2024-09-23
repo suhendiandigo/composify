@@ -116,8 +116,6 @@ def _ensure_type_annotation(
 
 def rule_decorator(
     func: F,
-    *,
-    return_rule: bool = False,
 ) -> F | ConstructRule:
     func_params = inspect.signature(func).parameters
     func_id = f"@rule {func.__module__}:{func.__name__}"
@@ -158,8 +156,6 @@ def rule_decorator(
         RULE_ATTR,
         rule,
     )
-    if return_rule:
-        return rule
     return func
 
 
