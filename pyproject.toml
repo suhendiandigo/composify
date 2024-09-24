@@ -12,6 +12,7 @@ maintainers = [
 description = "Library to help compose python apps declaratively."
 dependencies = [
     "exceptiongroup>=1.2.2",
+    "typing-extensions>=4.12.2",
 ]
 license = {text = "MIT"}
 
@@ -69,6 +70,22 @@ testpaths = [
 source = ['composify']
 branch = true
 relative_files = true
+context = '${CONTEXT}'
+
+[tool.coverage.report]
+precision = 2
+
+exclude_lines = [
+    'pragma: no cover',
+    'raise NotImplementedError',
+    'if TYPE_CHECKING:',
+    'if typing.TYPE_CHECKING:',
+    '@overload',
+    '@typing.overload',
+    '\(Protocol\):$',
+    'typing.assert_never',
+    'assert_never',
+]
 
 [tool.ruff]
 line-length = 80

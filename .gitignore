@@ -2,6 +2,8 @@
 __pycache__
 *.pyc
 
+.coverage
+
 # Package Manager
 .pdm-python
 
