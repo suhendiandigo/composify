@@ -13,7 +13,7 @@ from composify.rules import ConstructRule, RuleRegistry, as_rule
 
 
 def create_resolver(*factories: ConstructorProvider):
-    return BlueprintResolver(factories=factories)
+    return BlueprintResolver(providers=factories)
 
 
 def create_rule_provider(*rules: ConstructRule):
@@ -30,7 +30,7 @@ def _format_construction_string(
     name: str, construction: Blueprint, indent: int, level: int
 ) -> str:
     indent_str = " " * (level * indent)
-    result = f"{indent_str}{name + ": " if name else ''}{construction.output_type!s} <- {construction.source}"
+    result = f"{indent_str}{name + ': ' if name else ''}{construction.output_type!s} <- {construction.source}"
     for parameter_name, parameter in construction.dependencies:
         result += "\n" + _format_construction_string(
             parameter_name, parameter, indent, level + 1

@@ -1,8 +1,9 @@
 from dataclasses import dataclass
 
+from exceptiongroup import ExceptionGroup
 from pytest import raises
 
-from composify.errors import CyclicDependencyError, FailedToResolveError
+from composify.errors import CyclicDependencyError
 from composify.rules import collect_rules, rule
 from tests.utils import create_rule_resolver
 
@@ -40,9 +41,9 @@ rules_2 = collect_rules()
 
 def test_raises_cyclic_dependency():
     resolver = create_rule_resolver(*rules)
-    with raises(FailedToResolveError) as exc:
+    with raises(ExceptionGroup) as exc:
         list(resolver.resolve(B))
-    assert isinstance(exc.value.errors[0], CyclicDependencyError)
+    assert exc.group_contains(CyclicDependencyError)
 
 
 def test_cyclic_dependency_but_okay():

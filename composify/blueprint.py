@@ -1,13 +1,11 @@
 from dataclasses import dataclass, field
-from typing import Generic, Iterable, TypeAlias, TypeVar
+from typing import Generic, Iterable, TypeVar
+
+from exceptiongroup import ExceptionGroup
+from typing_extensions import TypeAlias
 
 from composify.constructor import Constructor, ConstructorFunction
-from composify.errors import (
-    CyclicDependencyError,
-    FailedToResolveError,
-    NoConstructorError,
-    TracedTypeConstructionResolutionError,
-)
+from composify.errors import CyclicDependencyError, NoConstructorError
 from composify.provider import ConstructorProvider
 
 T = TypeVar("T")
@@ -77,16 +75,23 @@ class BlueprintResolver:
 
     def __init__(
         self,
-        factories: Iterable[ConstructorProvider],
-        is_exhaustive: bool = False,
+        providers: Iterable[ConstructorProvider],
     ) -> None:
-        self._factories = tuple(factories)
-        self._is_exhaustive = is_exhaustive
+        self._providers = tuple(providers)
         self._memo: dict[type, tuple[Constructor, ...]] = {}
 
+    def register_provider(self, provider: ConstructorProvider) -> None:
+        """Register a new provider to the resolver."""
+        if provider in self._providers:
+            raise ValueError(f"Provider {provider!r} is already registered.")
+        self._providers = self._providers + (provider,)
+
+        # Our memo is no longer valid
+        self._memo.clear()
+
     def _raw_create_plans(self, target: type[T]) -> Iterable[Constructor]:
-        for factory in self._factories:
-            yield from factory.provide_for_type(target)
+        for provider in self._providers:
+            yield from provider.provide_for_type(target)
 
     def _create_plans(self, target: type[T]) -> tuple[Constructor, ...]:
         result = self._memo.get(target, None)
@@ -146,7 +151,7 @@ class BlueprintResolver:
         plans = self._create_plans(target)
         if not plans:
             raise NoConstructorError(target, trace.traces)
-        errors: list[TracedTypeConstructionResolutionError] = []
+        errors: list[Exception] = []
         constructions: list[Blueprint[T]] = []
         for plan_order, plan in enumerate(plans):
             try:
@@ -155,10 +160,10 @@ class BlueprintResolver:
                 )
             except (NoConstructorError, CyclicDependencyError) as exc:
                 errors.append(exc)
-            except FailedToResolveError as exc:
-                errors.extend(exc.errors)
+            except ExceptionGroup as exc:
+                errors.extend(exc.exceptions)
         if not constructions and errors:
-            raise FailedToResolveError(target, trace.traces, errors)
+            raise ExceptionGroup("Failed to resolve", errors)
         yield from constructions
 
     def resolve(self, target: type[T]) -> Iterable[Blueprint[T]]:
@@ -169,4 +174,4 @@ class BlueprintResolver:
                 key=lambda x: x.priority,
             )
         except (NoConstructorError, CyclicDependencyError) as exc:
-            raise FailedToResolveError(target, tracing.traces, [exc])
+            raise ExceptionGroup("Failed to resolve", [exc])

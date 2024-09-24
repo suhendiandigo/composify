@@ -1,5 +1,7 @@
 from dataclasses import dataclass
-from typing import Awaitable, Callable, Generic, ParamSpec, TypeAlias, TypeVar
+from typing import Awaitable, Callable, Generic, TypeVar
+
+from typing_extensions import ParamSpec, TypeAlias
 
 from composify.rules import ParameterTypes
 

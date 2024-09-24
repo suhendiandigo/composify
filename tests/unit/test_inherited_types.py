@@ -2,8 +2,9 @@ from dataclasses import dataclass
 from typing import Annotated
 
 import pytest
+from exceptiongroup import ExceptionGroup
 
-from composify.errors import FailedToResolveError
+from composify.errors import NoConstructorError
 from composify.metadata.qualifiers import DisallowSubclass
 from composify.rules import rule
 from tests.utils import blueprint, compare_blueprints, create_rule_resolver
@@ -43,8 +44,9 @@ async def test_subclasses():
         [blueprint(create_c)],
     )
 
-    with pytest.raises(FailedToResolveError):
+    with pytest.raises(ExceptionGroup) as exc:
         resolver.resolve(B)
+    assert exc.group_contains(NoConstructorError)
 
     compare_blueprints(
         resolver.resolve(C),
@@ -56,11 +58,13 @@ async def test_subclasses():
 async def test_disallowed_subclasses():
     resolver = create_rule_resolver(create_c)
 
-    with pytest.raises(FailedToResolveError):
+    with pytest.raises(ExceptionGroup) as exc:
         resolver.resolve(Annotated[A, DisallowSubclass()])
+    assert exc.group_contains(NoConstructorError)
 
-    with pytest.raises(FailedToResolveError):
+    with pytest.raises(ExceptionGroup) as exc:
         resolver.resolve(B)
+    assert exc.group_contains(NoConstructorError)
 
     compare_blueprints(
         resolver.resolve(C),
@@ -77,8 +81,9 @@ async def test_allowed_subclasses():
         [blueprint(create_c)],
     )
 
-    with pytest.raises(FailedToResolveError):
+    with pytest.raises(ExceptionGroup) as exc:
         resolver.resolve(B)
+    assert exc.group_contains(NoConstructorError)
 
     compare_blueprints(
         resolver.resolve(C),

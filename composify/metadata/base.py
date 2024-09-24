@@ -1,6 +1,8 @@
 import sys
 from functools import partial
-from typing import Any, Self, TypeVar, cast
+from typing import Any, TypeVar, cast
+
+from typing_extensions import Self
 
 if sys.version_info < (3, 10):
     SLOTS = {}

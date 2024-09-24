@@ -5,7 +5,6 @@ from composify.blueprint import Blueprint
 
 __all__ = [
     "Builder",
-    "BuilderCache",
     "BuilderSaveTo",
 ]
 
@@ -13,48 +12,33 @@ __all__ = [
 T = TypeVar("T")
 
 
-class BuilderCache(Protocol[T]):
-    def __setitem__(self, key: Blueprint, value: T) -> None:
-        raise NotImplementedError()
-
-    def __getitem__(self, item: Blueprint) -> T:
-        raise NotImplementedError()
-
-    def get(self, key: Blueprint, default: T, /) -> T:
-        raise NotImplementedError()
-
-
 class BuilderSaveTo(Protocol):
     def __setitem__(self, key: type[Any], value: Any) -> None:
         raise NotImplementedError()
 
 
-_undefined = object()
-
-
 class Builder:
 
-    _cache: BuilderCache[Any] | None
+    _cache: dict[Blueprint[Any], asyncio.Task[Any]]
 
     def __init__(
         self,
-        cache: BuilderCache | None = _undefined,  # type: ignore[assignment]
         save_to: BuilderSaveTo | None = None,
     ) -> None:
-        self._cache = {} if cache is _undefined else cache
+        self._cache = {}
         self._save_to = save_to
 
     async def from_blueprint(self, blueprint: Blueprint[T]) -> T:
         if self._cache is not None:
-            value = self._cache.get(blueprint, None)
-            if value is not None:
-                return await value
-        coroutine = asyncio.Task(self._from_blueprint(blueprint))
+            task = self._cache.get(blueprint, None)
+            if task is not None:
+                return await task
+        task = asyncio.Task(self._from_blueprint(blueprint))
         if self._cache is not None:
             # We cache the coroutine instead of the result
             # This allows asynchronous requests to share the same coroutine
-            self._cache[blueprint] = coroutine
-        value = await coroutine
+            self._cache[blueprint] = task
+        value = await task
         if self._save_to is not None:
             self._save_to[blueprint.output_type] = value
         return value

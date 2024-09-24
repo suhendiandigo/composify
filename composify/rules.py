@@ -11,12 +11,12 @@ from typing import (
     Generic,
     Iterable,
     Mapping,
-    ParamSpec,
-    TypeAlias,
     TypeVar,
     get_origin,
     get_type_hints,
 )
+
+from typing_extensions import ParamSpec, TypeAlias
 
 from composify.errors import (
     InvalidTypeAnnotation,

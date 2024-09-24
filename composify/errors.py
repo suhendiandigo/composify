@@ -1,8 +1,32 @@
-from typing import Any, Iterable, TypeAlias
+from typing import Any
+
+from typing_extensions import TypeAlias
 
 
 class ResolverError(Exception):
     pass
+
+
+class MultipleResolutionError(ResolverError):
+    def __init__(self, type_: type, resolutions: Any) -> None:
+        self.type_ = type_
+        self.resolutions = resolutions
+        super().__init__(
+            type_,
+            f"Multiple resolution found for {type_!r}",
+        )
+
+
+class NoResolutionError(ResolverError):
+    def __init__(
+        self,
+        type_: type,
+    ) -> None:
+        self.type_ = type_
+        super().__init__(
+            type_,
+            f"No resolution found for {type_!r}",
+        )
 
 
 class TypeConstructionResolutionError(ResolverError):
@@ -34,21 +58,6 @@ class CyclicDependencyError(TracedTypeConstructionResolutionError):
     def __init__(self, type_: type, traces: Traces) -> None:
         super().__init__(
             type_, traces, f"Cyclic dependency found for {type_!r}"
-        )
-
-
-class FailedToResolveError(TracedTypeConstructionResolutionError):
-    def __init__(
-        self,
-        type_: type,
-        traces: Traces,
-        errors: Iterable[TracedTypeConstructionResolutionError],
-    ) -> None:
-        self.errors = errors
-        super().__init__(
-            type_,
-            traces,
-            f"Failed to resolve for {type_!r}",
         )
 
 
