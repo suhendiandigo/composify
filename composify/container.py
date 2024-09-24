@@ -20,7 +20,7 @@ from composify.registry import (
     Key,
     TypedRegistry,
 )
-from composify.types import get_type
+from composify.types import AnnotatedType, get_type
 
 E = TypeVar("E")
 
@@ -98,7 +98,7 @@ class BaseContainer(ABC):
     def add(
         self,
         instance: Any,
-        type_: type | None = None,
+        type_: AnnotatedType | None = None,
         *,
         name: str | None = None,
         is_primary: bool = False,
@@ -178,7 +178,7 @@ class Container(BaseContainer):
     def add(
         self,
         instance: Any,
-        type_: type | None = None,
+        type_: AnnotatedType | None = None,
         *,
         name: str | None = None,
         is_primary: bool = False,

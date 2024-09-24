@@ -5,11 +5,15 @@ from typing import (  # type: ignore[attr-defined]
     ForwardRef,
     Generic,
     Protocol,
+    TypeAlias,
+    TypeVar,
     Union,
     _eval_type,
     get_args,
     get_origin,
 )
+
+from typing_extensions import _AnnotatedAlias
 
 
 def get_type(type_: Any) -> type:
@@ -75,3 +79,8 @@ def resolve_forward_ref(forward_ref: str, globals_: dict):
         return forward_ref
 
     return _eval_type(ForwardRef(forward_ref), globals_, globals_)
+
+
+T = TypeVar("T")
+
+AnnotatedType: TypeAlias = type[T] | _AnnotatedAlias

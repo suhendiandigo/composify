@@ -48,6 +48,8 @@ class Composify:
         self._container.add(self)
         self._container.add(self._container)
 
+        self.add = self._container.add
+
     def _select_blueprint(self, resolution_mode: ResolutionMode = "default"):
         match resolution_mode:
             case "select_first":
