@@ -1,0 +1,113 @@
+import asyncio
+from concurrent.futures import ThreadPoolExecutor
+from functools import partial
+from typing import Any, Protocol, TypeVar, cast
+
+from composify.blueprint import Blueprint
+from composify.constructor import SyncConstructorFunction
+from composify.errors import AsyncBlueprintError
+
+__all__ = [
+    "AsyncBuilder",
+    "Builder",
+]
+
+
+T = TypeVar("T")
+
+
+class BuilderSaveTo(Protocol):
+    def __setitem__(self, key: type[Any], value: Any) -> None:
+        raise NotImplementedError()
+
+
+class AsyncBuilder:
+
+    _cache: dict[Blueprint[Any], asyncio.Task[Any]]
+
+    def __init__(
+        self,
+        save_to: BuilderSaveTo | None = None,
+        threadpool_executor: ThreadPoolExecutor | None = None,
+    ) -> None:
+        self._cache = {}
+        self._save_to = save_to
+        self._threadpool_executor = threadpool_executor or ThreadPoolExecutor()
+
+    async def get_cached(self, blueprint: Blueprint[T]) -> T | None:
+        cached = self._cache.get(blueprint, None)
+        return await cached if cached else None
+
+    async def from_blueprint(self, blueprint: Blueprint[T]) -> T:
+        task = self._cache.get(blueprint, None)
+        if task is not None:
+            return await task
+        task = asyncio.Task(self._from_blueprint(blueprint))
+
+        # We cache the coroutine instead of the result
+        # This allows asynchronous requests to share the same coroutine
+        self._cache[blueprint] = task
+
+        value = await task
+
+        if self._save_to is not None:
+            self._save_to[blueprint.output_type] = value
+        return value
+
+    async def _from_blueprint(self, blueprint: Blueprint[T]) -> T:
+        name_task_pairs = tuple(
+            (name, self.from_blueprint(param))
+            for name, param in blueprint.dependencies
+        )
+
+        names = tuple(p[0] for p in name_task_pairs)
+        tasks = tuple(p[1] for p in name_task_pairs)
+
+        results = tuple(await asyncio.gather(*tasks))
+
+        parameters = {name: result for name, result in zip(names, results)}
+
+        if asyncio.iscoroutinefunction(blueprint.constructor):
+            return await blueprint.constructor(**parameters)
+        else:
+            loop = asyncio.get_running_loop()
+            return await loop.run_in_executor(self._threadpool_executor, partial(blueprint.constructor, **parameters))  # type: ignore[arg-type]
+
+
+class Builder:
+
+    _cache: dict[Blueprint[Any], Any]
+
+    def __init__(
+        self,
+        save_to: BuilderSaveTo | None = None,
+    ) -> None:
+        self._cache = {}
+        self._save_to = save_to
+
+    def from_blueprint(self, blueprint: Blueprint[T]) -> T:
+        if blueprint.is_async:
+            raise AsyncBlueprintError(
+                f"Trying to build from async blueprint {blueprint}"
+            )
+        value = self._cache.get(blueprint, None)
+        if value is not None:
+            return value
+
+        value = self._from_blueprint(blueprint)
+
+        self._cache[blueprint] = value
+
+        if self._save_to is not None:
+            self._save_to[blueprint.output_type] = value
+        return value
+
+    def _from_blueprint(self, blueprint: Blueprint[T]) -> T:
+        parameters = {
+            name: self.from_blueprint(param)
+            for name, param in blueprint.dependencies
+        }
+
+        return cast(SyncConstructorFunction, blueprint.constructor)(
+            **parameters
+        )

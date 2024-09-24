@@ -1,6 +1,6 @@
 [project]
-name = "declarative_app"
-requires-python = ">=3.9"
+name = "composify"
+requires-python = ">=3.10"
 dynamic = ["version"]
 readme = "README.md"
 authors = [
@@ -9,9 +9,11 @@ authors = [
 maintainers = [
   {name = "Suhendi Andigo", email = "suhendiandigo@gmail.com"},
 ]
-version = "0.1.0"
-description = "Library to build python apps declaratively"
-dependencies = []
+description = "Library to help compose python apps declaratively."
+dependencies = [
+    "typing-extensions>=4.12.2",
+    "exceptiongroup>=1.2.2",
+]
 license = {text = "MIT"}
 
 [build-system]
@@ -21,6 +23,10 @@ build-backend = "pdm.backend"
 [tool.pdm]
 distribution = true
 
+[tool.pdm.version]
+source = "file"
+path = "composify/__init__.py"
+
 [tool.pdm.dev-dependencies]
 dev = [
     "pre-commit>=3.8.0",
@@ -28,12 +34,24 @@ dev = [
     "pytest-asyncio-cooperative>=0.37.0",
 ]
 
+[tool.black]
+line-length = 79
+
+[tool.isort]
+profile = "black"
+line_length = 79
+
+[tool.flake8]
+max-line-length = 80
+extend-select = "B950"
+extend-ignore = "E203,E501,E701"
+
 [tool.pytest.ini_options]
-asyncio_mode = "strict" 
 pythonpath = [
   ".",
   "tests",
 ]
 testpaths = [
-    "tests/unit",
+  "tests/unit",
+  "tests/integration",
 ]
