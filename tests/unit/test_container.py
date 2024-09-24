@@ -1,5 +1,5 @@
 from dataclasses import dataclass
-from typing import Annotated
+from typing import Annotated, Generic, TypeVar
 
 from pytest import raises
 
@@ -8,6 +8,7 @@ from composify.errors import (
     AmbiguousInstanceError,
     ConflictingInstanceNameError,
     InstanceNotFoundError,
+    InvalidTypeAnnotation,
     MultiplePrimaryInstanceError,
 )
 from composify.metadata import Name
@@ -26,6 +27,14 @@ class B:
 @dataclass(frozen=True)
 class C(A):
     pass
+
+
+T = TypeVar("T")
+
+
+@dataclass(frozen=True)
+class D(Generic[T]):
+    value: T
 
 
 def test_add(container: Container):
@@ -104,33 +113,16 @@ def test_multiple_primary_error(container: Container):
         container.add(A("323"), is_primary=True)
 
 
-# def test_invariant(container: Container):
-#     a = A("123")
-#     c = C("321")
-#     container.add(a)
-#     container.add(c)
+def test_generic_types(container: Container):
+    with raises(InvalidTypeAnnotation):
+        container.add(D[int](1), D[int])
 
-#     assert a == container.get(Annotated[A, Invariant])
-#     assert c == container.get(Annotated[C, Invariant])
-#     with raises(InstanceNotFoundError):
-#         container.get(B)
+    d = D[int](1)
+    container.add(d)
+    assert d == container.get(D)
 
+    with raises(InvalidTypeAnnotation):
+        assert d == container.get(D[int])
 
-# def test_covariant(container: Container):
-#     c = C("123")
-#     container.add(c)
-
-#     assert c == container.get(Annotated[A, Covariant])
-#     assert c == container.get(Annotated[C, Covariant])
-#     with raises(InstanceNotFoundError):
-#         container.get(B)
-
-
-# def test_contravariant(container: Container):
-#     a = A("123")
-#     container.add(a)
-
-#     assert a == container.get(Annotated[A, Contravariant])
-#     assert a == container.get(Annotated[C, Contravariant])
-#     with raises(InstanceNotFoundError):
-#         container.get(B)
+    with raises(InvalidTypeAnnotation):
+        assert d != container.get(D[str])

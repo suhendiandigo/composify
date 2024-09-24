@@ -18,9 +18,13 @@ from typing import (
     get_type_hints,
 )
 
+from composify.errors import (
+    InvalidTypeAnnotation,
+    MissingParameterTypeAnnotation,
+    MissingReturnTypeAnnotation,
+)
 from composify.metadata import BaseAttributeMetadata, collect_attributes
 from composify.metadata.attributes import AttributeSet
-from composify.metadata.qualifiers import VarianceType
 from composify.registry import (
     EntriesFilterer,
     EntriesValidator,
@@ -83,18 +87,6 @@ def _make_rule(
         attributes=AttributeSet(output_attributes),
         parameter_types=parameter_types,
     )
-
-
-class InvalidTypeAnnotation(TypeError):
-    pass
-
-
-class MissingReturnTypeAnnotation(InvalidTypeAnnotation):
-    pass
-
-
-class MissingParameterTypeAnnotation(InvalidTypeAnnotation):
-    pass
 
 
 def _ensure_type_annotation(
@@ -228,7 +220,7 @@ class DuplicateRuleError(RuleError):
 
 class RuleRegistry:
 
-    __slots__ = ("_rules", "_default_variance")
+    __slots__ = "_rules"
 
     _rules: TypedRegistry[ConstructRule]
 
@@ -238,15 +230,12 @@ class RuleRegistry:
         *,
         attribute_filterer: EntriesFilterer | None = None,
         unique_validator: EntriesValidator | None = None,
-        default_variance: VarianceType = "covariant",
     ) -> None:
         self._rules = TypedRegistry(
             rules,
-            default_variance=default_variance,
             entries_filterer=attribute_filterer,
             unique_validator=unique_validator,
         )
-        self._default_variance = default_variance
 
     def _compare_entries(
         self, entry: ConstructRule, other: ConstructRule

@@ -7,8 +7,8 @@ from .attributes import (
 from .base import BaseMetadata, MetadataSet, collect_metadata
 from .qualifiers import (
     BaseQualifierMetadata,
+    DisallowSubclass,
     QualifierSet,
-    Variance,
     collect_qualifiers,
 )
 
@@ -23,5 +23,5 @@ __all__ = [
     "BaseQualifierMetadata",
     "QualifierSet",
     "collect_qualifiers",
-    "Variance",
+    "DisallowSubclass",
 ]

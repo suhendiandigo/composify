@@ -1,17 +1,17 @@
 from collections import abc
 from dataclasses import dataclass
-from typing import Any, Generic, Iterable, Type, TypeVar
+from typing import Annotated, Any, Generic, Iterable, Type, TypeVar, get_origin
 
 from composify.errors import (
     AmbiguousInstanceError,
     ConflictingInstanceNameError,
     InstanceOfNameNotFoundError,
     InstanceOfTypeNotFoundError,
+    InvalidTypeAnnotation,
     MultiplePrimaryInstanceError,
 )
 from composify.metadata import Name, collect_attributes
 from composify.metadata.attributes import AttributeSet
-from composify.metadata.qualifiers import VarianceType
 from composify.registry import (
     EntriesFilterer,
     EntriesValidator,
@@ -74,12 +74,25 @@ class ContainerUniqueEntryValidator(EntriesValidator[InstanceWrapper]):
                 raise MultiplePrimaryInstanceError(entry, other)
 
 
+def _ensure_type(
+    type_: type | None,
+) -> type:
+    if type_ is None:
+        raise InvalidTypeAnnotation("Missing a type.")
+    if not isinstance(type_, type):
+        origin = get_origin(type_)
+        if origin is not Annotated:
+            raise InvalidTypeAnnotation(
+                f"Input must be a type, got {type_} of type {type(type_)}."
+            )
+    return type_
+
+
 class Container:
     __slots__ = (
         "_name",
         "_mapping_by_type",
         "_mapping_by_name",
-        "_default_variance",
     )
 
     _mapping_by_type: TypedRegistry[InstanceWrapper]
@@ -91,17 +104,14 @@ class Container:
         *,
         attribute_filterer: EntriesFilterer | None = None,
         unique_validator: EntriesValidator | None = None,
-        default_variance: VarianceType = "covariant",
     ):
         self._name = name or hex(self.__hash__())
         self._mapping_by_type = TypedRegistry(
-            default_variance=default_variance,
             entries_filterer=attribute_filterer,
             unique_validator=unique_validator
             or ContainerUniqueEntryValidator(),
         )
         self._mapping_by_name = {}
-        self._default_variance = default_variance
 
     def __str__(self) -> str:
         return f"container::{self._name}"
@@ -109,6 +119,7 @@ class Container:
     def add(
         self,
         instance: Any,
+        type_: type | None = None,
         *,
         name: str | None = None,
         is_primary: bool = False,
@@ -118,7 +129,7 @@ class Container:
         :param component: The object to be added to the registry.
         :return:
         """
-        type_ = instance.__class__
+        type_ = _ensure_type(type_ or instance.__class__)
 
         attributes = collect_attributes(type_)
         instance_type = get_type(type_)
@@ -186,6 +197,7 @@ class Container:
 
     def get_wrapper(self, type_: Type[E]) -> InstanceWrapper[E]:
         """Get an object from the object registry."""
+        type_ = _ensure_type(type_=type_)
         wrappers = tuple(self._mapping_by_type.get(type_))
         if not wrappers:
             raise InstanceOfTypeNotFoundError(type_)

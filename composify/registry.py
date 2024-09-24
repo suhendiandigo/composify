@@ -9,7 +9,6 @@ from composify.metadata.attributes import AttributeSet, collect_attributes
 from composify.metadata.qualifiers import (
     DisallowSubclass,
     QualifierSet,
-    VarianceType,
     collect_qualifiers,
 )
 from composify.types import get_type, resolve_base_types
@@ -101,7 +100,6 @@ class TypedRegistry(Generic[E]):
 
     __slots__ = (
         "_entries",
-        "_default_variance",
         "_entries_filterer",
         "_unique_validator",
     )
@@ -112,12 +110,10 @@ class TypedRegistry(Generic[E]):
         self,
         initial_entries: Iterable[E] | None = None,
         *,
-        default_variance: VarianceType = "covariant",
         entries_filterer: EntriesFilterer[E] | None = None,
         unique_validator: EntriesValidator[E] | None = None,
     ) -> None:
         self._entries = {}
-        self._default_variance = default_variance
         self._entries_filterer = entries_filterer or DefaultEntriesFilterer()
         self._unique_validator = unique_validator or DefaultEntriesValidator()
         if initial_entries is not None:

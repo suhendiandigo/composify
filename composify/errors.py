@@ -112,6 +112,12 @@ class RegistryError(Exception):
     pass
 
 
+class UnsupportedTypeError(RegistryError):
+
+    def __init__(self, type_: type) -> None:
+        super().__init__(f"Type of {type_} is unsupported")
+
+
 class DuplicatedEntryError(RegistryError):
 
     def __init__(self, to_add: Any, existing: Any) -> None:
@@ -120,3 +126,15 @@ class DuplicatedEntryError(RegistryError):
         super().__init__(
             f"Entry {to_add!r} conflict with existing entry {existing!r}"
         )
+
+
+class InvalidTypeAnnotation(TypeError):
+    pass
+
+
+class MissingReturnTypeAnnotation(InvalidTypeAnnotation):
+    pass
+
+
+class MissingParameterTypeAnnotation(InvalidTypeAnnotation):
+    pass
