@@ -1,9 +1,10 @@
 from dataclasses import dataclass
 from typing import Awaitable, Callable, Generic, TypeVar
 
-from typing_extensions import ParamSpec, TypeAlias, _AnnotatedAlias
+from typing_extensions import ParamSpec, TypeAlias
 
 from composify.rules import ParameterTypes
+from composify.types import AnnotatedType
 
 __all__ = [
     "Constructor",
@@ -25,5 +26,5 @@ class Constructor(Generic[T]):
     source: str
     constructor: ConstructorFunction[T]
     is_async: bool
-    output_type: type[T] | _AnnotatedAlias
+    output_type: AnnotatedType
     dependencies: ParameterTypes

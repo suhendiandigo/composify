@@ -11,9 +11,9 @@ from composify.metadata.qualifiers import (
     QualifierSet,
     collect_qualifiers,
 )
-from composify.types import get_type, resolve_base_types
+from composify.types import AnnotatedType, get_type, resolve_base_types
 
-Key: TypeAlias = type
+Key: TypeAlias = AnnotatedType
 
 
 class Entry(ABC):
@@ -50,9 +50,6 @@ class EntriesFilterer(Protocol, Generic[E]):
         self, entries: Iterable[E], context: FilteringContext
     ) -> Iterable[E]:
         raise NotImplementedError()
-
-
-_DEFAULT_DISALLOW_SUBCLASS = DisallowSubclass(False)
 
 
 class DefaultEntriesFilterer(EntriesFilterer[E]):

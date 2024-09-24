@@ -32,7 +32,7 @@ from composify.registry import (
     Key,
     TypedRegistry,
 )
-from composify.types import get_type
+from composify.types import AnnotatedType, get_type
 
 __all__ = ["rule", "as_rule"]
 
@@ -248,5 +248,5 @@ class RuleRegistry:
     def register_rules(self, rules: Iterable[ConstructRule]) -> None:
         self._rules.add_entries(rules)
 
-    def get(self, target: type[T]) -> Iterable[ConstructRule[T]]:
+    def get(self, target: AnnotatedType[T]) -> Iterable[ConstructRule[T]]:
         return self._rules.get(target)

@@ -5,7 +5,8 @@ from composify.constructor import Constructor
 from composify.container import Container
 from composify.errors import InstanceNotFoundError
 from composify.metadata.attributes import ProvidedBy
-from composify.rules import RuleRegistry
+from composify.rules import ConstructRule, RuleRegistry
+from composify.types import AnnotatedType
 
 __all__ = [
     "ConstructorProvider",
@@ -27,7 +28,9 @@ class Static(Generic[T]):
 
 class ConstructorProvider(Protocol):
 
-    def provide_for_type(self, type_: type[T]) -> Iterable[Constructor[T]]:
+    def provide_for_type(
+        self, type_: AnnotatedType[T]
+    ) -> Iterable[Constructor[T]]:
         raise NotImplementedError()
 
 
@@ -44,7 +47,9 @@ class ContainerInstanceProvider(ConstructorProvider):
     def container(self) -> Container:
         return self._container
 
-    def provide_for_type(self, type_: type[T]) -> Iterable[Constructor[T]]:
+    def provide_for_type(
+        self, type_: AnnotatedType[T]
+    ) -> Iterable[Constructor[T]]:
         try:
             wrapper = self._container.get_wrapper(type_)
             if wrapper.attributes.get(ProvidedBy, None) is not None:
@@ -71,8 +76,10 @@ class RuleBasedConstructorProvider(ConstructorProvider):
     def __init__(self, rules: RuleRegistry) -> None:
         self._rules = rules
 
-    def provide_for_type(self, type_: type[T]) -> Iterable[Constructor[T]]:
-        rules = self._rules.get(type_)
+    def provide_for_type(
+        self, type_: AnnotatedType[T]
+    ) -> Iterable[Constructor[T]]:
+        rules: Iterable[ConstructRule[T]] = self._rules.get(type_)
         if not rules:
             return
         for rule in rules:

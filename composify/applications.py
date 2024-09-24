@@ -13,6 +13,7 @@ from composify.provider import (
     RuleBasedConstructorProvider,
 )
 from composify.rules import ConstructRule, RuleRegistry, as_rule
+from composify.types import AnnotatedType
 
 T = TypeVar("T")
 
@@ -77,7 +78,7 @@ class Composify:
         self._resolver.register_provider(provider)
 
     def _default_select_blueprint(
-        self, type_: type[T], plans: tuple[Blueprint[T], ...]
+        self, type_: AnnotatedType[T], plans: tuple[Blueprint[T], ...]
     ) -> Blueprint[T]:
         if len(plans) > 1:
             raise MultipleResolutionError(type_, plans)
@@ -86,20 +87,22 @@ class Composify:
         return plans[0]
 
     def _select_first_blueprint(
-        self, type_: type[T], plans: tuple[Blueprint[T], ...]
+        self, type_: AnnotatedType[T], plans: tuple[Blueprint[T], ...]
     ) -> Blueprint[T]:
         if len(plans) == 0:
             raise NoResolutionError(type_)
         return plans[0]
 
     async def aget(
-        self, type_: type[T], resolution_mode: ResolutionMode = "default"
+        self,
+        type_: AnnotatedType[T],
+        resolution_mode: ResolutionMode = "default",
     ) -> T:
         plans = tuple(self._resolver.resolve(type_))
         plan = self._select_blueprint(resolution_mode)(type_, plans)
         return await self._async_builder.from_blueprint(plan)
 
-    async def aget_all(self, type_: type[T]) -> Iterable[T]:
+    async def aget_all(self, type_: AnnotatedType[T]) -> Iterable[T]:
         plans = tuple(self._resolver.resolve(type_))
         return tuple(
             await asyncio.gather(
@@ -108,12 +111,14 @@ class Composify:
         )
 
     def get(
-        self, type_: type[T], resolution_mode: ResolutionMode = "default"
+        self,
+        type_: AnnotatedType[T],
+        resolution_mode: ResolutionMode = "default",
     ) -> T:
         plans = tuple(self._resolver.resolve(type_))
         plan = self._select_blueprint(resolution_mode)(type_, plans)
         return self._builder.from_blueprint(plan)
 
-    def get_all(self, type_: type[T]) -> Iterable[T]:
+    def get_all(self, type_: AnnotatedType) -> Iterable[T]:
         plans = tuple(self._resolver.resolve(type_))
         return tuple(self._builder.from_blueprint(plan) for plan in plans)

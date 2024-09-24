@@ -4,6 +4,8 @@ from typing import Any, TypeVar, cast
 
 from typing_extensions import Self
 
+from composify.types import AnnotatedType
+
 if sys.version_info < (3, 10):
     SLOTS = {}
 else:
@@ -60,6 +62,6 @@ def _collect_metadata(
     return set_type(filter(partial(_is_instance, metadata_type), vals))
 
 
-def collect_metadata(type_: type) -> MetadataSet:
+def collect_metadata(type_: AnnotatedType) -> MetadataSet:
     """Collect all annotated metadata that inherits BaseMetadata class as a frozenset."""
     return _collect_metadata(type_, BaseMetadata, MetadataSet)

@@ -1,7 +1,6 @@
 import itertools
 from typing import (  # type: ignore[attr-defined]
     Annotated,
-    Any,
     ForwardRef,
     Generic,
     Protocol,
@@ -14,13 +13,6 @@ from typing import (  # type: ignore[attr-defined]
 )
 
 from typing_extensions import _AnnotatedAlias
-
-
-def get_type(type_: Any) -> type:
-    origin = get_origin(type_)
-    if origin is Annotated:
-        type_ = get_args(type_)[0]
-    return type_
 
 
 def _expand_union_args_combinations(type_):
@@ -84,3 +76,10 @@ def resolve_forward_ref(forward_ref: str, globals_: dict):
 T = TypeVar("T")
 
 AnnotatedType: TypeAlias = type[T] | _AnnotatedAlias
+
+
+def get_type(type_: AnnotatedType) -> type:
+    origin = get_origin(type_)
+    if origin is Annotated:
+        type_ = get_args(type_)[0]
+    return type_

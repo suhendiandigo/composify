@@ -7,6 +7,7 @@ from typing_extensions import TypeAlias
 from composify.constructor import Constructor, ConstructorFunction
 from composify.errors import CyclicDependencyError, NoConstructorError
 from composify.provider import ConstructorProvider
+from composify.types import AnnotatedType
 
 T = TypeVar("T")
 
@@ -24,7 +25,7 @@ class Blueprint(Generic[T]):
     source: str = field(hash=False, compare=False)
     constructor: ConstructorFunction[T]
     is_async: bool = field(hash=False, compare=False)
-    output_type: type[T] = field(hash=False, compare=False)
+    output_type: AnnotatedType[T] = field(hash=False, compare=False)
     dependencies: frozenset[tuple[str, "Blueprint"]]
     priority: tuple[int, ...] = field(hash=False, compare=False)
 
@@ -92,11 +93,15 @@ class BlueprintResolver:
         # Our memo is no longer valid
         self.clear_memo()
 
-    def _raw_create_plans(self, target: type[T]) -> Iterable[Constructor]:
+    def _raw_create_plans(
+        self, target: AnnotatedType[T]
+    ) -> Iterable[Constructor]:
         for provider in self._providers:
             yield from provider.provide_for_type(target)
 
-    def _create_plans(self, target: type[T]) -> tuple[Constructor, ...]:
+    def _create_plans(
+        self, target: AnnotatedType[T]
+    ) -> tuple[Constructor, ...]:
         result = self._memo.get(target, None)
         if result is None:
             result = self._memo[target] = tuple(self._raw_create_plans(target))
@@ -104,7 +109,7 @@ class BlueprintResolver:
 
     def _resolve_plan(
         self,
-        target: type[T],
+        target: AnnotatedType[T],
         name: str,
         plan: Constructor[T],
         plan_order: int,
