@@ -38,6 +38,11 @@ def create_result(param1: Param1, param2: Param2) -> Result:
     return Result(param1.value + param2.value)
 
 
+@rule
+def create_direct_result(param: Param) -> Result:
+    return Result(param.value)
+
+
 DEFAULT_VALUE = 1
 
 

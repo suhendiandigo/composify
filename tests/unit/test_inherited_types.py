@@ -7,7 +7,7 @@ from exceptiongroup import ExceptionGroup
 from composify.errors import NoConstructorError
 from composify.metadata.qualifiers import DisallowSubclass
 from composify.rules import rule
-from tests.utils import blueprint, compare_blueprints, create_rule_resolver
+from tests.utils import blueprint, create_rule_resolver
 
 
 @dataclass(frozen=True)
@@ -36,7 +36,7 @@ def create_c() -> C:
 
 
 @pytest.mark.asyncio_cooperative
-async def test_subclasses():
+async def test_subclasses(compare_blueprints):
     resolver = create_rule_resolver(create_c)
 
     compare_blueprints(
@@ -55,7 +55,7 @@ async def test_subclasses():
 
 
 @pytest.mark.asyncio_cooperative
-async def test_disallowed_subclasses():
+async def test_disallowed_subclasses(compare_blueprints):
     resolver = create_rule_resolver(create_c)
 
     with pytest.raises(ExceptionGroup) as exc:
@@ -73,7 +73,7 @@ async def test_disallowed_subclasses():
 
 
 @pytest.mark.asyncio_cooperative
-async def test_allowed_subclasses():
+async def test_allowed_subclasses(compare_blueprints):
     resolver = create_rule_resolver(create_c)
 
     compare_blueprints(

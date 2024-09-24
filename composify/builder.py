@@ -4,8 +4,8 @@ from typing import Any, Protocol, TypeVar
 from composify.blueprint import Blueprint
 
 __all__ = [
+    "AsyncBuilder",
     "Builder",
-    "BuilderSaveTo",
 ]
 
 
@@ -17,7 +17,7 @@ class BuilderSaveTo(Protocol):
         raise NotImplementedError()
 
 
-class Builder:
+class AsyncBuilder:
 
     _cache: dict[Blueprint[Any], asyncio.Task[Any]]
 
@@ -29,16 +29,17 @@ class Builder:
         self._save_to = save_to
 
     async def from_blueprint(self, blueprint: Blueprint[T]) -> T:
-        if self._cache is not None:
-            task = self._cache.get(blueprint, None)
-            if task is not None:
-                return await task
+        task = self._cache.get(blueprint, None)
+        if task is not None:
+            return await task
         task = asyncio.Task(self._from_blueprint(blueprint))
-        if self._cache is not None:
-            # We cache the coroutine instead of the result
-            # This allows asynchronous requests to share the same coroutine
-            self._cache[blueprint] = task
+
+        # We cache the coroutine instead of the result
+        # This allows asynchronous requests to share the same coroutine
+        self._cache[blueprint] = task
+
         value = await task
+
         if self._save_to is not None:
             self._save_to[blueprint.output_type] = value
         return value
@@ -56,7 +57,40 @@ class Builder:
 
         parameters = {name: result for name, result in zip(names, results)}
 
-        if blueprint.is_async:
+        if asyncio.iscoroutinefunction(blueprint.constructor):
             return await blueprint.constructor(**parameters)  # type: ignore[misc]
         else:
             return blueprint.constructor(**parameters)  # type: ignore[return-value]
+
+
+class Builder:
+
+    _cache: dict[Blueprint[Any], Any]
+
+    def __init__(
+        self,
+        save_to: BuilderSaveTo | None = None,
+    ) -> None:
+        self._cache = {}
+        self._save_to = save_to
+
+    def from_blueprint(self, blueprint: Blueprint[T]) -> T:
+        value = self._cache.get(blueprint, None)
+        if value is not None:
+            return value
+
+        value = self._from_blueprint(blueprint)
+
+        self._cache[blueprint] = value
+
+        if self._save_to is not None:
+            self._save_to[blueprint.output_type] = value
+        return value
+
+    def _from_blueprint(self, blueprint: Blueprint[T]) -> T:
+        parameters = {
+            name: self.from_blueprint(param)
+            for name, param in blueprint.dependencies
+        }
+
+        return blueprint.constructor(**parameters)

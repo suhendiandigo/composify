@@ -1,3 +1,6 @@
+from itertools import zip_longest
+from typing import Iterable
+
 from pytest import fixture
 
 from composify.blueprint import Blueprint, BlueprintResolver
@@ -47,3 +50,22 @@ def pytest_assertrepr_compare(op, left, right):
                 if not left_val == right_val:
                     result.append(f"   {attr}: {left_val} != {right_val}")
             return result
+
+
+def _compare_blueprints(
+    plans: Iterable[Blueprint], expected_plans: Iterable[Blueprint]
+):
+    plans = list(plans)
+    expected_plans = list(expected_plans)
+    assert len(plans) == len(
+        expected_plans
+    ), f"different plan len {len(plans)} != {len(expected_plans)}"
+    for index, (plan, expected) in enumerate(
+        zip_longest(plans, expected_plans)
+    ):
+        assert plan == expected, f"case {index}"
+
+
+@fixture
+def compare_blueprints():
+    return _compare_blueprints

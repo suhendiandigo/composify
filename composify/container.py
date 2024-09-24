@@ -1,6 +1,6 @@
 from collections import abc
-from dataclasses import dataclass
-from typing import Annotated, Any, Generic, Iterable, Type, TypeVar, get_origin
+from dataclasses import dataclass, field
+from typing import Annotated, Any, Generic, Iterable, TypeVar, get_origin
 
 from composify.errors import (
     AmbiguousInstanceError,
@@ -34,8 +34,8 @@ ARRAY_TYPES = {
 
 @dataclass(frozen=True)
 class InstanceWrapper(Entry, Generic[E]):
-    instance: E
-    instance_type: Type[E]
+    instance: E = field(hash=False, compare=False)
+    instance_type: type[E]
     instance_name: str
     attributes: AttributeSet
     is_primary: bool
@@ -48,16 +48,19 @@ class InstanceWrapper(Entry, Generic[E]):
     def name(self) -> str:
         return self.instance_name
 
+    def __call__(self) -> E:
+        return self.instance
+
     def __repr__(self) -> str:
-        return f"Instance(name={self.name}, value={self.instance!r}, attributes={self.attributes!r})"
+        return f"Instance(name={self.name}, type={self.instance_type!r}, value={self.instance!r}, attributes={self.attributes!r}, is_primary={self.is_primary!r})"
+
+
+def _resolve_type_name(value: type):
+    return f"{value.__module__}.{value.__qualname__}".replace(".<locals>", "")
 
 
 def _resolve_instance_name(value: Any):
-    return (
-        f"{value.__class__.__module__}.{value.__class__.__qualname__}".replace(
-            ".<locals>", ""
-        )
-    )
+    return _resolve_type_name(value.__class__)
 
 
 class ContainerUniqueEntryValidator(EntriesValidator[InstanceWrapper]):
@@ -116,6 +119,15 @@ class Container:
     def __str__(self) -> str:
         return f"container::{self._name}"
 
+    def _resolve_name(self, instance: str) -> str:
+        name = _resolve_instance_name(instance)
+        i = 0
+        resolved_name = f"{name}_{i}"
+        while resolved_name in self._mapping_by_name:
+            i += 1
+            resolved_name = f"{name}_{i}"
+        return resolved_name
+
     def add(
         self,
         instance: Any,
@@ -137,12 +149,7 @@ class Container:
         name = name or attributes.get(Name)
 
         if name is None:
-            i = 0
-            resolved_name = _resolve_instance_name(instance)
-            name = f"{resolved_name}_{i}"
-            while name in self._mapping_by_name:
-                i += 1
-                name = f"{resolved_name}_{i}"
+            name = self._resolve_name(instance)
         elif name in self._mapping_by_name:
             raise ConflictingInstanceNameError(
                 name, instance, self._mapping_by_name[name]
@@ -181,21 +188,24 @@ class Container:
 
         self._mapping_by_type.remove_entry(wrapper)
 
-    def __setitem__(self, key: str, value: Any):
-        self.add(value, name=key)
+    def __setitem__(self, key: str | type, value: Any):
+        if isinstance(key, str):
+            self.add(value, name=key)
+        else:
+            self.add(value, type_=key)
 
-    def __getitem__(self, item: Type[E]) -> E | None:
+    def __getitem__(self, item: type[E]) -> E | None:
         return self.get(item)
 
     def __delitem__(self, key):
         self.remove(key)
 
-    def get(self, type_: Type[E]) -> E | None:
+    def get(self, type_: type[E]) -> E | None:
         """Get an object from the object registry."""
         wrapper = self.get_wrapper(type_)
         return wrapper.instance if wrapper else None
 
-    def get_wrapper(self, type_: Type[E]) -> InstanceWrapper[E]:
+    def get_wrapper(self, type_: type[E]) -> InstanceWrapper[E]:
         """Get an object from the object registry."""
         type_ = _ensure_type(type_=type_)
         wrappers = tuple(self._mapping_by_type.get(type_))
@@ -214,7 +224,7 @@ class Container:
             return primary
         raise AmbiguousInstanceError(type_, wrappers)
 
-    def get_by_name(self, name: str, _: Type[E] | None = None) -> E:
+    def get_by_name(self, name: str, _: type[E] | None = None) -> E:
         try:
             return self._mapping_by_name[name].instance
         except KeyError:

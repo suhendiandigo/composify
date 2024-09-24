@@ -80,6 +80,9 @@ class BlueprintResolver:
         self._providers = tuple(providers)
         self._memo: dict[type, tuple[Constructor, ...]] = {}
 
+    def clear_memo(self) -> None:
+        self._memo.clear()
+
     def register_provider(self, provider: ConstructorProvider) -> None:
         """Register a new provider to the resolver."""
         if provider in self._providers:
@@ -87,7 +90,7 @@ class BlueprintResolver:
         self._providers = self._providers + (provider,)
 
         # Our memo is no longer valid
-        self._memo.clear()
+        self.clear_memo()
 
     def _raw_create_plans(self, target: type[T]) -> Iterable[Constructor]:
         for provider in self._providers:

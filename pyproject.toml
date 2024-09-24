@@ -47,12 +47,11 @@ extend-select = "B950"
 extend-ignore = "E203,E501,E701"
 
 [tool.pytest.ini_options]
-asyncio_mode = "strict" 
 pythonpath = [
   ".",
   "tests",
 ]
 testpaths = [
-    "tests/unit",
-    "tests/integration",
+  "tests/unit",
+  "tests/integration",
 ]

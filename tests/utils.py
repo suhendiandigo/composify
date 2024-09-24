@@ -1,9 +1,10 @@
 import asyncio
-from itertools import zip_longest
-from typing import Any, Iterable
+from typing import Any
 
 from composify.blueprint import Blueprint, BlueprintResolver
 from composify.constructor import ConstructorFunction
+from composify.container import InstanceWrapper, _resolve_type_name
+from composify.metadata.attributes import AttributeSet, Name
 from composify.provider import (
     ConstructorProvider,
     RuleBasedConstructorProvider,
@@ -71,6 +72,30 @@ def static(
     )
 
 
+def instance(
+    type_: type,
+    idx: int,
+    attributes: AttributeSet = None,
+    is_primary: bool = False,
+) -> Blueprint:
+
+    name = f"{_resolve_type_name(type_)}_{idx}"
+    return Blueprint(
+        "__test_instance",  # Not used for building
+        InstanceWrapper(
+            instance=None,
+            instance_type=type_,
+            instance_name=name,
+            attributes=attributes or AttributeSet((Name(name),)),
+            is_primary=is_primary,
+        ),
+        is_async=False,
+        output_type=type,  # Not used for building
+        dependencies=frozenset(),
+        priority=tuple(),  # Not used for building
+    )
+
+
 def _find_difference(
     result: Blueprint, expected: Blueprint, path: tuple
 ) -> tuple | None:
@@ -91,17 +116,3 @@ def _find_difference(
 
 def find_difference(result: Blueprint, expected: Blueprint) -> tuple | None:
     return _find_difference(result, expected, tuple())
-
-
-def compare_blueprints(
-    plans: Iterable[Blueprint], expected_plans: Iterable[Blueprint]
-):
-    plans = list(plans)
-    expected_plans = list(expected_plans)
-    assert len(plans) == len(
-        expected_plans
-    ), f"different plan len {len(plans)} != {len(expected_plans)}"
-    for index, (plan, expected) in enumerate(
-        zip_longest(plans, expected_plans)
-    ):
-        assert plan == expected, f"case {index}"

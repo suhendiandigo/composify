@@ -3,7 +3,7 @@ from dataclasses import dataclass
 
 import pytest
 
-from composify.builder import Builder
+from composify.builder import AsyncBuilder
 from composify.rules import rule
 from tests.utils import blueprint, static
 
@@ -34,7 +34,7 @@ async def test_construct():
         double,
         param=static(Value(5)),
     )
-    builder = Builder()
+    builder = AsyncBuilder()
     result = await builder.from_blueprint(plan)
     assert result == Value(10)
 
@@ -93,7 +93,7 @@ async def test_cached_concurrent_construct():
     }
     assert len(testcases) == 4
 
-    builder = Builder()
+    builder = AsyncBuilder()
 
     plans, expected_results = zip(*testcases.items())
 

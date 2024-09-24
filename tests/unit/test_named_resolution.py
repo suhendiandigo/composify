@@ -5,7 +5,7 @@ import pytest
 
 from composify.metadata import Name
 from composify.rules import collect_rules, rule
-from tests.utils import blueprint, compare_blueprints, create_rule_resolver
+from tests.utils import blueprint, create_rule_resolver
 
 
 @dataclass(frozen=True)
@@ -30,7 +30,7 @@ rules_2 = collect_rules()
 
 
 @pytest.mark.asyncio_cooperative
-async def test_no_named():
+async def test_no_named(compare_blueprints):
     resolver = create_rule_resolver(*rules_1)
 
     compare_blueprints(
@@ -39,7 +39,7 @@ async def test_no_named():
 
 
 @pytest.mark.asyncio_cooperative
-async def test_multiple_with_named():
+async def test_multiple_with_named(compare_blueprints):
     resolver = create_rule_resolver(*rules_2)
 
     compare_blueprints(

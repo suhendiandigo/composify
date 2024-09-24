@@ -48,7 +48,7 @@ class ContainerInstanceProvider(ConstructorProvider):
             wrapper = self._container.get_wrapper(type_)
             yield Constructor(
                 source=f"{self._container}::{wrapper.name}",
-                constructor=Static(wrapper.instance),
+                constructor=wrapper,
                 is_async=False,
                 output_type=type_,
                 dependencies=tuple(),

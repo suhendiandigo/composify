@@ -12,7 +12,6 @@ class MultipleResolutionError(ResolverError):
         self.type_ = type_
         self.resolutions = resolutions
         super().__init__(
-            type_,
             f"Multiple resolution found for {type_!r}",
         )
 

@@ -1,6 +1,7 @@
 from fixture.example_complex_rules import (
     Param,
     Result,
+    create_direct_result,
     create_result,
     default_param,
     infer_param_1,
@@ -11,11 +12,10 @@ from fixture.example_complex_rules import (
 from composify.provider import ContainerInstanceProvider
 from tests.utils import (
     blueprint,
-    compare_blueprints,
     create_resolver,
     create_rule_provider,
     create_rule_resolver,
-    static,
+    instance,
 )
 
 
@@ -28,7 +28,7 @@ def test_comparison():
     assert plans[0] != blueprint(create_result)
 
 
-def test_plan_ordering(container):
+def test_plan_ordering(container, compare_blueprints):
     resolver = create_resolver(
         ContainerInstanceProvider(container),
         create_rule_provider(*rules),
@@ -38,14 +38,16 @@ def test_plan_ordering(container):
     compare_blueprints(
         resolver.resolve(Result),
         [
+            blueprint(create_direct_result, param=instance(Param, 0)),
+            blueprint(create_direct_result, param=blueprint(default_param)),
             blueprint(
                 create_result,
-                param1=blueprint(infer_param_1, param=static(_value)),
-                param2=blueprint(infer_param_2, param=static(_value)),
+                param1=blueprint(infer_param_1, param=instance(Param, 0)),
+                param2=blueprint(infer_param_2, param=instance(Param, 0)),
             ),
             blueprint(
                 create_result,
-                param1=blueprint(infer_param_1, param=static(_value)),
+                param1=blueprint(infer_param_1, param=instance(Param, 0)),
                 param2=blueprint(
                     infer_param_2, param=blueprint(default_param)
                 ),
@@ -55,7 +57,7 @@ def test_plan_ordering(container):
                 param1=blueprint(
                     infer_param_1, param=blueprint(default_param)
                 ),
-                param2=blueprint(infer_param_2, param=static(_value)),
+                param2=blueprint(infer_param_2, param=instance(Param, 0)),
             ),
             blueprint(
                 create_result,
@@ -70,12 +72,13 @@ def test_plan_ordering(container):
     )
 
 
-def test_rule_resolver():
+def test_rule_resolver(compare_blueprints):
     resolver = create_rule_resolver(*rules)
 
     compare_blueprints(
         resolver.resolve(Result),
         [
+            blueprint(create_direct_result, param=blueprint(default_param)),
             blueprint(
                 create_result,
                 param1=blueprint(
@@ -89,13 +92,13 @@ def test_rule_resolver():
     )
 
 
-def test_container_resolver(container, container_resolver):
+def test_container_resolver(container, container_resolver, compare_blueprints):
     _value = Param(5)
     container.add(_value)
 
     compare_blueprints(
         container_resolver.resolve(Param),
         [
-            static(_value),
+            instance(Param, 0),
         ],
     )
