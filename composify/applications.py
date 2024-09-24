@@ -48,8 +48,6 @@ class Composify:
         self._container.add(self)
         self._container.add(self._container)
 
-        self.add = self._container.add
-
     def _select_blueprint(self, resolution_mode: ResolutionMode = "default"):
         match resolution_mode:
             case "select_first":
@@ -60,6 +58,10 @@ class Composify:
     @property
     def container(self) -> Container:
         return self._container
+
+    @property
+    def add(self):
+        return self._container.add
 
     def add_rule(self, rule: ConstructRule | Callable) -> None:
         self._rules.register_rule(_ensure_rule_type(rule))
