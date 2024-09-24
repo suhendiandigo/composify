@@ -1,0 +1,98 @@
+name: CI
+
+on:
+  push:
+    branches:
+      - main
+    tags:
+      - '**'
+  pull_request: {}
+
+
+jobs:
+  lint:
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        python-version: ["3.10", "3.11", "3.12"]
+
+    steps:
+    - uses: actions/checkout@v4
+
+    - name: Set up Python ${{ matrix.python-version }}
+      uses: actions/setup-python@v3
+      with:
+        python-version: ${{ matrix.python-version }}
+
+    - uses: pdm-project/setup-pdm@v4
+      with:
+        python-version: ${{ matrix.python-version }}
+        cache: true
+        allow-python-prereleases: true
+
+    - name: Install deps
+      run: pdm install
+
+    - uses: pre-commit/action@v3.0.1
+      with:
+        extra_args: --all-files --verbose
+      env:
+        SKIP: no-commit-to-branch
+
+    - name: Run mypy
+      run: pdm run mypy composify
+
+  test:
+    name: test ${{ matrix.os }} / ${{ matrix.python-version }}
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, macos-13, macos-latest, windows-latest]
+        python-version: ['3.10', '3.11', '3.12']
+        exclude:
+          - os: macos-13
+            python-version: '3.10'
+          - os: macos-13
+            python-version: '3.11'
+          - os: macos-13
+            python-version: '3.12'
+
+    env:
+      OS: ${{ matrix.os }}
+      DEPS: yes
+
+    runs-on: ${{ matrix.os }}
+
+    steps:
+    - uses: actions/checkout@v4
+
+    - uses: pdm-project/setup-pdm@v4
+      with:
+        python-version: ${{ matrix.python-version }}
+        cache: true
+        allow-python-prereleases: true
+
+    - name: install deps
+      run: |
+        pdm venv create --with-pip --force $PYTHON
+        pdm install -G testing
+
+    - run: pdm info && pdm list
+
+    - run: 'pdm run python -c "import composify; print(composify.__version__)"'
+
+    - run: mkdir coverage
+
+    - name: test
+      run: pdm run coverage run -m pytest --durations=10
+      env:
+        COVERAGE_FILE: coverage/.coverage.${{ runner.os }}-py${{ matrix.python-version }}
+        CONTEXT: ${{ runner.os }}-py${{ matrix.python-version }}
+
+    - name: store coverage files
+      uses: actions/upload-artifact@v4
+      with:
+        name: coverage-${{ matrix.os }}-${{ matrix.python-version }}
+        path: coverage
+        include-hidden-files: true

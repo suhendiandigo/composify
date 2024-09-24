@@ -72,8 +72,8 @@ class AsyncBuilder:
             loop = asyncio.get_running_loop()
             return await loop.run_in_executor(
                 self._threadpool_executor,
-                partial(blueprint.constructor, **parameters),
-            )  # type: ignore[arg-type]
+                partial(blueprint.constructor, **parameters),  # type: ignore[arg-type]
+            )
 
 
 class Builder:

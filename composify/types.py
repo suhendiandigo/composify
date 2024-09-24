@@ -7,12 +7,11 @@ from typing import (  # type: ignore[attr-defined]
     TypeAlias,
     TypeVar,
     Union,
+    _AnnotatedAlias,
     _eval_type,
     get_args,
     get_origin,
 )
-
-from typing_extensions import _AnnotatedAlias
 
 
 def _expand_union_args_combinations(type_):
