@@ -39,9 +39,7 @@ def _format_construction_string(
     return result
 
 
-def format_construction_string(
-    construction: Blueprint, indent: int = 2
-) -> str:
+def format_construction_string(construction: Blueprint, indent: int = 2) -> str:
     return _format_construction_string("", construction, indent, 0)
 
 
@@ -83,7 +81,6 @@ def instance(
     attributes: AttributeSet = None,
     is_primary: bool = False,
 ) -> Blueprint:
-
     name = f"{_resolve_type_name(type_)}_{idx}"
     return Blueprint(
         "__test_instance",  # Not used for building

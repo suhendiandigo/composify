@@ -1,7 +1,7 @@
 from abc import ABC, abstractmethod
-from collections import abc
+from collections.abc import Collection, Iterable
 from dataclasses import dataclass, field
-from typing import Annotated, Any, Generic, Iterable, TypeVar, get_origin
+from typing import Annotated, Any, Generic, TypeVar, get_origin
 
 from composify.errors import (
     AmbiguousInstanceError,
@@ -27,8 +27,8 @@ E = TypeVar("E")
 ARRAY_TYPES = {
     list: list,
     tuple: tuple,
-    abc.Iterable: tuple,
-    abc.Collection: tuple,
+    Iterable: tuple,
+    Collection: tuple,
     set: set,
 }
 
@@ -65,7 +65,6 @@ def _resolve_instance_name(value: Any):
 
 
 class ContainerUniqueEntryValidator(EntriesValidator[InstanceWrapper]):
-
     def validate_entries(
         self, entry: InstanceWrapper, others: Iterable[InstanceWrapper]
     ) -> None:
@@ -93,7 +92,6 @@ def _ensure_type(
 
 
 class BaseContainer(ABC):
-
     @abstractmethod
     def add(
         self,

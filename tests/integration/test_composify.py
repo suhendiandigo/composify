@@ -71,8 +71,7 @@ async def test_async_default_resolution():
     composify.add_rule(async_create_value)
 
     assert (
-        await composify.aget(Value, resolution_mode="default")
-        == create_value()
+        await composify.aget(Value, resolution_mode="default") == create_value()
     )
 
     composify.add_rule(async_create_value_2)

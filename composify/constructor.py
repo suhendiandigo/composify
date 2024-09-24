@@ -1,7 +1,6 @@
+from collections.abc import Awaitable, Callable
 from dataclasses import dataclass
-from typing import Awaitable, Callable, Generic, TypeVar
-
-from typing_extensions import ParamSpec, TypeAlias
+from typing import Generic, ParamSpec, TypeAlias, TypeVar
 
 from composify.rules import ParameterTypes
 from composify.types import AnnotatedType

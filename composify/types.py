@@ -22,9 +22,9 @@ def _expand_union_args_combinations(type_):
         for comb in itertools.chain.from_iterable(
             itertools.combinations(args, n + 1) for n in range(0, len(args))
         ):
-            result.append(Union[comb])
+            result.append(comb)
         return tuple(result)
-    return tuple([type_])
+    return [type_]
 
 
 def _expand_generic_args(type_) -> list[type]:

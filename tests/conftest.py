@@ -1,5 +1,5 @@
+from collections.abc import Iterable
 from itertools import zip_longest
-from typing import Iterable
 
 from pytest import fixture
 

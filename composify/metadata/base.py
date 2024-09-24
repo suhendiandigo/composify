@@ -1,4 +1,3 @@
-import sys
 from functools import partial
 from typing import Any, TypeVar, cast
 
@@ -6,10 +5,7 @@ from typing_extensions import Self
 
 from composify.types import AnnotatedType
 
-if sys.version_info < (3, 10):
-    SLOTS = {}
-else:
-    SLOTS = {"slots": True}
+SLOTS = {"slots": True}
 
 
 class BaseMetadata:
@@ -21,7 +17,6 @@ T = TypeVar("T")
 
 
 class MetadataSet(frozenset[M]):
-
     _mapping: dict[type[M], M] | None
 
     def __new__(cls, *args, **kwargs) -> Self:
@@ -56,7 +51,7 @@ def _collect_metadata(
     metadata_type: type,
     set_type: type[S],
 ) -> S:
-    vals: tuple[Any, ...] = getattr(type_, "__metadata__", tuple())
+    vals: tuple[Any, ...] = getattr(type_, "__metadata__", ())
     if not vals:
         return set_type(vals)
     return set_type(filter(partial(_is_instance, metadata_type), vals))

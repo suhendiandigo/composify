@@ -1,22 +1,19 @@
 import asyncio
 import inspect
+from collections.abc import Awaitable, Callable, Iterable, Mapping
 from dataclasses import dataclass
 from functools import partial, wraps
 from types import FrameType, ModuleType
 from typing import (
     Annotated,
     Any,
-    Awaitable,
-    Callable,
     Generic,
-    Iterable,
-    Mapping,
+    ParamSpec,
+    TypeAlias,
     TypeVar,
     get_origin,
     get_type_hints,
 )
-
-from typing_extensions import ParamSpec, TypeAlias
 
 from composify.errors import (
     InvalidTypeAnnotation,
@@ -165,7 +162,7 @@ def as_rule(f: Any) -> ConstructRule | None:
 
 
 def collect_rules(
-    *namespaces: ModuleType | Mapping[str, Any]
+    *namespaces: ModuleType | Mapping[str, Any],
 ) -> Iterable[ConstructRule]:
     if not namespaces:
         currentframe = inspect.currentframe()
@@ -219,7 +216,6 @@ class DuplicateRuleError(RuleError):
 
 
 class RuleRegistry:
-
     __slots__ = "_rules"
 
     _rules: TypedRegistry[ConstructRule]

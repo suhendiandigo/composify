@@ -7,11 +7,10 @@ authors = [
     {name = "Suhendi Andigo", email = "suhendiandigo@gmail.com"},
 ]
 maintainers = [
-  {name = "Suhendi Andigo", email = "suhendiandigo@gmail.com"},
+    {name = "Suhendi Andigo", email = "suhendiandigo@gmail.com"},
 ]
 description = "Library to help compose python apps declaratively."
 dependencies = [
-    "typing-extensions>=4.12.2",
     "exceptiongroup>=1.2.2",
 ]
 license = {text = "MIT"}
@@ -28,8 +27,12 @@ source = "file"
 path = "composify/__init__.py"
 
 [tool.pdm.dev-dependencies]
-dev = [
-    "pre-commit>=3.8.0",
+linting = [
+    "ruff>=0.6.7",
+    "mypy~=1.11.2",
+]
+testing = [
+    "coverage[toml]",
     "pytest>=8.3.3",
     "pytest-asyncio-cooperative>=0.37.0",
 ]
@@ -44,14 +47,60 @@ line_length = 79
 [tool.flake8]
 max-line-length = 80
 extend-select = "B950"
-extend-ignore = "E203,E501,E701"
+extend-ignore = "E203,E701"
+exclude = [
+    ".git",
+    "__pycache__",
+    "build",
+    "dist"
+]
 
 [tool.pytest.ini_options]
 pythonpath = [
-  ".",
-  "tests",
+    ".",
+    "tests",
 ]
 testpaths = [
-  "tests/unit",
-  "tests/integration",
+    "tests/unit",
+    "tests/integration",
+]
+
+[tool.coverage.run]
+source = ['composify']
+branch = true
+relative_files = true
+
+[tool.ruff]
+line-length = 80
+target-version = 'py310'
+
+[tool.ruff.lint]
+select = [
+    'F',      # Pyflakes
+    'E',      # pycodestyle (Error)
+    'I',      # isort
+#    'D',      # pydocstyle
+    'UP',     # pyupgrade
+    'YTT',    # flake8-2020
+    'B',      # flake8-bugbear
+    'T10',    # flake8-debugger
+    'T20',    # flake8-print
+    'C4',     # flake8-comprehensions
+    'PYI006', # flake8-pyi
+]
+ignore = ['D', 'E501', 'B011', 'B028', 'B904']
+flake8-quotes = {inline-quotes = 'double', multiline-quotes = 'double'}
+isort = { known-first-party = ['composify', 'tests'] }
+pydocstyle = { convention = 'google' }
+
+[tool.ruff.lint.per-file-ignores]
+'tests/*' = ['D', 'B', 'C4']
+
+[tool.ruff.format]
+quote-style = 'double'
+
+[tool.pycln]
+includes = [
+    "compsify/**/*.py",
+    "tests/**/*.py",
 ]
