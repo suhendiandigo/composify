@@ -1,3 +1,4 @@
+import asyncio
 from typing import Callable, Iterable, Literal, TypeVar
 
 from typing_extensions import TypeAlias
@@ -20,20 +21,18 @@ ResolutionMode: TypeAlias = Literal["default", "select_first"]
 
 
 def _ensure_rule_type(rule: ConstructRule | Callable) -> ConstructRule:
-    rule = as_rule(rule)
-    if rule is None:
+    r = as_rule(rule)
+    if r is None:
         raise TypeError(
             f"{rule!r} of type{type(rule)!r} is not a rule. To declare a rule, use the @rule decorator."
         )
-    return rule
+    return r
 
 
 class Composify:
     def __init__(
         self,
         name: str | None = None,
-        *,
-        resolution_mode: ResolutionMode = "default",
     ) -> None:
         self._container = Container(name)
         self._rules = RuleRegistry()
@@ -49,11 +48,12 @@ class Composify:
         self._container.add(self)
         self._container.add(self._container)
 
+    def _select_blueprint(self, resolution_mode: ResolutionMode = "default"):
         match resolution_mode:
             case "select_first":
-                self._select_blueprint = self._select_first_blueprint
+                return self._select_first_blueprint
             case _:
-                self._select_blueprint = self._default_select_blueprint
+                return self._default_select_blueprint
 
     @property
     def container(self) -> Container:
@@ -88,12 +88,28 @@ class Composify:
             raise NoResolutionError(type_)
         return plans[0]
 
-    async def async_build(self, type_: type[T]) -> T:
+    async def aget(
+        self, type_: type[T], resolution_mode: ResolutionMode = "default"
+    ) -> T:
         plans = tuple(self._resolver.resolve(type_))
-        plan = self._select_blueprint(type_, plans)
+        plan = self._select_blueprint(resolution_mode)(type_, plans)
         return await self._async_builder.from_blueprint(plan)
 
-    def build(self, type_: type[T]) -> T:
+    async def aget_all(self, type_: type[T]) -> Iterable[T]:
         plans = tuple(self._resolver.resolve(type_))
-        plan = self._select_blueprint(type_, plans)
+        return tuple(
+            await asyncio.gather(
+                *(self._async_builder.from_blueprint(plan) for plan in plans)
+            )
+        )
+
+    def get(
+        self, type_: type[T], resolution_mode: ResolutionMode = "default"
+    ) -> T:
+        plans = tuple(self._resolver.resolve(type_))
+        plan = self._select_blueprint(resolution_mode)(type_, plans)
         return self._builder.from_blueprint(plan)
+
+    def get_all(self, type_: type[T]) -> Iterable[T]:
+        plans = tuple(self._resolver.resolve(type_))
+        return tuple(self._builder.from_blueprint(plan) for plan in plans)

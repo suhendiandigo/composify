@@ -52,7 +52,12 @@ def blueprint(
     return Blueprint(
         "__test_blueprint__",  # Not used for building
         constructor,
-        is_async=asyncio.iscoroutinefunction(constructor),
+        is_async=any(
+            (
+                asyncio.iscoroutinefunction(constructor),
+                *(dependency.is_async for dependency in dependencies.values()),
+            )
+        ),
         output_type=type,  # Not used for building
         dependencies=frozenset(dependencies.items()),
         priority=tuple(),  # Not used for building

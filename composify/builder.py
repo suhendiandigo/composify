@@ -1,7 +1,11 @@
 import asyncio
-from typing import Any, Protocol, TypeVar
+from concurrent.futures import ThreadPoolExecutor
+from functools import partial
+from typing import Any, Protocol, TypeVar, cast
 
 from composify.blueprint import Blueprint
+from composify.constructor import SyncConstructorFunction
+from composify.errors import AsyncBlueprintError
 
 __all__ = [
     "AsyncBuilder",
@@ -24,9 +28,15 @@ class AsyncBuilder:
     def __init__(
         self,
         save_to: BuilderSaveTo | None = None,
+        threadpool_executor: ThreadPoolExecutor | None = None,
     ) -> None:
         self._cache = {}
         self._save_to = save_to
+        self._threadpool_executor = threadpool_executor or ThreadPoolExecutor()
+
+    async def get_cached(self, blueprint: Blueprint[T]) -> T | None:
+        cached = self._cache.get(blueprint, None)
+        return await cached if cached else None
 
     async def from_blueprint(self, blueprint: Blueprint[T]) -> T:
         task = self._cache.get(blueprint, None)
@@ -45,22 +55,23 @@ class AsyncBuilder:
         return value
 
     async def _from_blueprint(self, blueprint: Blueprint[T]) -> T:
-        parameter_name_coroutines = tuple(
+        name_task_pairs = tuple(
             (name, self.from_blueprint(param))
             for name, param in blueprint.dependencies
         )
 
-        names = tuple(p[0] for p in parameter_name_coroutines)
-        coroutines = tuple(p[1] for p in parameter_name_coroutines)
+        names = tuple(p[0] for p in name_task_pairs)
+        tasks = tuple(p[1] for p in name_task_pairs)
 
-        results = tuple(await asyncio.gather(*coroutines))
+        results = tuple(await asyncio.gather(*tasks))
 
         parameters = {name: result for name, result in zip(names, results)}
 
         if asyncio.iscoroutinefunction(blueprint.constructor):
-            return await blueprint.constructor(**parameters)  # type: ignore[misc]
+            return await blueprint.constructor(**parameters)
         else:
-            return blueprint.constructor(**parameters)  # type: ignore[return-value]
+            loop = asyncio.get_running_loop()
+            return await loop.run_in_executor(self._threadpool_executor, partial(blueprint.constructor, **parameters))  # type: ignore[arg-type]
 
 
 class Builder:
@@ -75,6 +86,10 @@ class Builder:
         self._save_to = save_to
 
     def from_blueprint(self, blueprint: Blueprint[T]) -> T:
+        if blueprint.is_async:
+            raise AsyncBlueprintError(
+                f"Trying to build from async blueprint {blueprint}"
+            )
         value = self._cache.get(blueprint, None)
         if value is not None:
             return value
@@ -93,4 +108,6 @@ class Builder:
             for name, param in blueprint.dependencies
         }
 
-        return blueprint.constructor(**parameters)
+        return cast(SyncConstructorFunction, blueprint.constructor)(
+            **parameters
+        )

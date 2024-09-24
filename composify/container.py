@@ -1,3 +1,4 @@
+from abc import ABC, abstractmethod
 from collections import abc
 from dataclasses import dataclass, field
 from typing import Annotated, Any, Generic, Iterable, TypeVar, get_origin
@@ -91,7 +92,53 @@ def _ensure_type(
     return type_
 
 
-class Container:
+class BaseContainer(ABC):
+
+    @abstractmethod
+    def add(
+        self,
+        instance: Any,
+        type_: type | None = None,
+        *,
+        name: str | None = None,
+        is_primary: bool = False,
+    ) -> None:
+        raise NotImplementedError()
+
+    @abstractmethod
+    def remove(self, instance: Any) -> None:
+        raise NotImplementedError()
+
+    @abstractmethod
+    def remove_by_name(self, name: str) -> None:
+        raise NotImplementedError()
+
+    @abstractmethod
+    def __setitem__(self, key: str | type, value: Any):
+        raise NotImplementedError()
+
+    @abstractmethod
+    def __getitem__(self, item: type[E]) -> E | None:
+        raise NotImplementedError()
+
+    @abstractmethod
+    def __delitem__(self, key):
+        raise NotImplementedError()
+
+    @abstractmethod
+    def get(self, type_: type[E]) -> E | None:
+        raise NotImplementedError()
+
+    @abstractmethod
+    def get_wrapper(self, type_: type[E]) -> InstanceWrapper[E]:
+        raise NotImplementedError()
+
+    @abstractmethod
+    def get_by_name(self, name: str, _: type[E] | None = None) -> E:
+        raise NotImplementedError()
+
+
+class Container(BaseContainer):
     __slots__ = (
         "_name",
         "_mapping_by_type",
@@ -136,11 +183,6 @@ class Container:
         name: str | None = None,
         is_primary: bool = False,
     ) -> None:
-        """Add an object to the object registry under a specific name.
-        :param name: The identifier of the object in the registry.
-        :param component: The object to be added to the registry.
-        :return:
-        """
         type_ = _ensure_type(type_ or instance.__class__)
 
         attributes = collect_attributes(type_)
@@ -167,7 +209,6 @@ class Container:
         self._mapping_by_type.add_entry(wrapper)
 
     def remove(self, instance: Any) -> None:
-        """Remove an object from the object registry."""
         type_ = get_type(instance.__class__)
         wrappers = self._mapping_by_type.get(type_)
         if wrappers:
@@ -201,12 +242,10 @@ class Container:
         self.remove(key)
 
     def get(self, type_: type[E]) -> E | None:
-        """Get an object from the object registry."""
         wrapper = self.get_wrapper(type_)
         return wrapper.instance if wrapper else None
 
     def get_wrapper(self, type_: type[E]) -> InstanceWrapper[E]:
-        """Get an object from the object registry."""
         type_ = _ensure_type(type_=type_)
         wrappers = tuple(self._mapping_by_type.get(type_))
         if not wrappers:

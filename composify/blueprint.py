@@ -132,7 +132,16 @@ class BlueprintResolver:
                 yield Blueprint(
                     source=plan.source,
                     constructor=plan.constructor,
-                    is_async=plan.is_async,
+                    # Parent is async if any of the dependencies is async
+                    is_async=any(
+                        (
+                            plan.is_async,
+                            *(
+                                parameter.is_async
+                                for _, parameter in parameter_permutation
+                            ),
+                        )
+                    ),
                     output_type=plan.output_type,
                     dependencies=parameter_permutation,
                     priority=(level, plan_order, i),

@@ -3,7 +3,7 @@ from dataclasses import dataclass
 import pytest
 
 from composify import Composify, rule
-from composify.errors import MultipleResolutionError
+from composify.errors import AsyncBlueprintError, MultipleResolutionError
 
 
 @dataclass
@@ -22,25 +22,96 @@ def create_value_2() -> Value:
 
 
 def test_default_resolution():
-    composify = Composify(resolution_mode="default")
+    composify = Composify()
 
     composify.add_rule(create_value)
 
-    assert composify.build(Value) == create_value()
+    assert composify.get(Value, resolution_mode="default") == create_value()
 
     composify.add_rule(create_value_2)
 
     with pytest.raises(MultipleResolutionError):
-        composify.build(Value)
+        composify.get(Value, resolution_mode="default")
+
+    assert composify.get_all(Value) == (create_value(), create_value_2())
 
 
 def test_first_resolution():
-    composify = Composify(resolution_mode="select_first")
+    composify = Composify()
 
     composify.add_rule(create_value)
 
-    assert composify.build(Value) == create_value()
+    assert (
+        composify.get(Value, resolution_mode="select_first") == create_value()
+    )
 
     composify.add_rule(create_value_2)
 
-    assert composify.build(Value) == create_value()
+    assert (
+        composify.get(Value, resolution_mode="select_first") == create_value()
+    )
+
+    assert composify.get_all(Value) == (create_value(), create_value_2())
+
+
+@rule
+async def async_create_value() -> Value:
+    return Value(5)
+
+
+@rule
+async def async_create_value_2() -> Value:
+    return Value(10)
+
+
+@pytest.mark.asyncio_cooperative
+async def test_async_default_resolution():
+    composify = Composify()
+
+    composify.add_rule(async_create_value)
+
+    assert (
+        await composify.aget(Value, resolution_mode="default")
+        == create_value()
+    )
+
+    composify.add_rule(async_create_value_2)
+
+    with pytest.raises(MultipleResolutionError):
+        await composify.aget(Value, resolution_mode="default")
+
+    assert await composify.aget_all(Value) == (
+        create_value(),
+        create_value_2(),
+    )
+
+
+@pytest.mark.asyncio_cooperative
+async def test_async_first_resolution():
+    composify = Composify()
+
+    composify.add_rule(async_create_value)
+
+    assert (
+        await composify.aget(Value, resolution_mode="select_first")
+    ) == create_value()
+
+    composify.add_rule(async_create_value_2)
+
+    assert (
+        await composify.aget(Value, resolution_mode="select_first")
+    ) == create_value()
+
+    assert (await composify.aget_all(Value)) == (
+        create_value(),
+        create_value_2(),
+    )
+
+
+def test_sync_build_on_async():
+    composify = Composify()
+
+    composify.add_rule(async_create_value)
+
+    with pytest.raises(AsyncBlueprintError):
+        composify.get(Value, resolution_mode="default")

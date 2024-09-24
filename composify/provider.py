@@ -1,9 +1,10 @@
 from dataclasses import dataclass
-from typing import Any, Generic, Iterable, Protocol, TypeVar
+from typing import Annotated, Any, Generic, Iterable, Protocol, TypeVar
 
 from composify.constructor import Constructor
 from composify.container import Container
 from composify.errors import InstanceNotFoundError
+from composify.metadata.attributes import ProvidedBy
 from composify.rules import RuleRegistry
 
 __all__ = [
@@ -46,11 +47,16 @@ class ContainerInstanceProvider(ConstructorProvider):
     def provide_for_type(self, type_: type[T]) -> Iterable[Constructor[T]]:
         try:
             wrapper = self._container.get_wrapper(type_)
+            if wrapper.attributes.get(ProvidedBy, None) is not None:
+                # This is to prevent container from providing instances
+                # provided by other providers.
+                return
+            source = f"{self._container}::{wrapper.name}"
             yield Constructor(
-                source=f"{self._container}::{wrapper.name}",
+                source=source,
                 constructor=wrapper,
                 is_async=False,
-                output_type=type_,
+                output_type=Annotated[type_, ProvidedBy(source)],
                 dependencies=tuple(),
             )
         except InstanceNotFoundError:
@@ -70,10 +76,11 @@ class RuleBasedConstructorProvider(ConstructorProvider):
         if not rules:
             return
         for rule in rules:
+            source = f"rule::{rule.canonical_name}"
             yield Constructor(
-                source=f"rule::{rule.canonical_name}",
+                source=source,
                 constructor=rule.function,
                 is_async=rule.is_async,
-                output_type=type_,
+                output_type=Annotated[type_, ProvidedBy(source)],
                 dependencies=rule.parameter_types,
             )

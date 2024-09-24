@@ -146,3 +146,11 @@ class MissingReturnTypeAnnotation(InvalidTypeAnnotation):
 
 class MissingParameterTypeAnnotation(InvalidTypeAnnotation):
     pass
+
+
+class BuilderError(Exception):
+    pass
+
+
+class AsyncBlueprintError(Exception):
+    pass

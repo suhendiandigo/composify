@@ -1,4 +1,6 @@
-from .base import BaseMetadata, MetadataSet, _collect_metadata
+from dataclasses import dataclass
+
+from .base import SLOTS, BaseMetadata, MetadataSet, _collect_metadata
 
 
 class BaseAttributeMetadata(BaseMetadata):
@@ -18,3 +20,10 @@ class Name(str, BaseAttributeMetadata):
 
     def __repr__(self) -> str:
         return f"Name({self})"
+
+
+@dataclass(frozen=True, **SLOTS)
+class ProvidedBy(BaseAttributeMetadata):
+    """Describe the provider of the value."""
+
+    source: str
