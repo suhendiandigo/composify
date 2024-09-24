@@ -1,5 +1,6 @@
+from collections.abc import Iterable
 from dataclasses import dataclass
-from typing import Annotated, Any, Generic, Iterable, Protocol, TypeVar
+from typing import Annotated, Any, Generic, Protocol, TypeVar
 
 from composify.constructor import Constructor
 from composify.container import Container
@@ -27,7 +28,6 @@ class Static(Generic[T]):
 
 
 class ConstructorProvider(Protocol):
-
     def provide_for_type(
         self, type_: AnnotatedType[T]
     ) -> Iterable[Constructor[T]]:
@@ -62,7 +62,7 @@ class ContainerInstanceProvider(ConstructorProvider):
                 constructor=wrapper,
                 is_async=False,
                 output_type=Annotated[type_, ProvidedBy(source)],
-                dependencies=tuple(),
+                dependencies=(),
             )
         except InstanceNotFoundError:
             pass

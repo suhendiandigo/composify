@@ -1,8 +1,9 @@
 from abc import ABC, abstractmethod
 from asyncio import Protocol
 from bisect import insort
+from collections.abc import Iterable
 from dataclasses import dataclass
-from typing import Generic, Iterable, TypeAlias, TypeVar
+from typing import Generic, TypeAlias, TypeVar
 
 from composify.errors import DuplicatedEntryError
 from composify.metadata.attributes import AttributeSet, collect_attributes
@@ -45,7 +46,6 @@ class FilteringContext:
 
 
 class EntriesFilterer(Protocol, Generic[E]):
-
     def filter_entries(
         self, entries: Iterable[E], context: FilteringContext
     ) -> Iterable[E]:
@@ -53,7 +53,6 @@ class EntriesFilterer(Protocol, Generic[E]):
 
 
 class DefaultEntriesFilterer(EntriesFilterer[E]):
-
     def filter_entries(
         self, entries: Iterable[E], context: FilteringContext
     ) -> Iterable[E]:
@@ -90,11 +89,10 @@ class DefaultEntriesValidator(EntriesValidator[E]):
                 raise DuplicatedEntryError(entry, other)
 
 
-_EMPTY_RESULT: tuple = tuple()
+_EMPTY_RESULT: tuple = ()
 
 
 class TypedRegistry(Generic[E]):
-
     __slots__ = (
         "_entries",
         "_entries_filterer",

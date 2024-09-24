@@ -1,6 +1,4 @@
-from typing import Any
-
-from typing_extensions import TypeAlias
+from typing import Any, TypeAlias
 
 
 class ResolverError(Exception):
@@ -29,7 +27,6 @@ class NoResolutionError(ResolverError):
 
 
 class TypeConstructionResolutionError(ResolverError):
-
     def __init__(self, type_: type, msg: str) -> None:
         super().__init__(msg)
         self.type_ = type_
@@ -40,7 +37,6 @@ Traces: TypeAlias = tuple[Trace, ...]
 
 
 class TracedTypeConstructionResolutionError(TypeConstructionResolutionError):
-
     def __init__(self, type_: type, traces: Traces, msg: str) -> None:
         super().__init__(type_, msg)
         self.traces = traces
@@ -121,13 +117,11 @@ class RegistryError(Exception):
 
 
 class UnsupportedTypeError(RegistryError):
-
     def __init__(self, type_: type) -> None:
         super().__init__(f"Type of {type_} is unsupported")
 
 
 class DuplicatedEntryError(RegistryError):
-
     def __init__(self, to_add: Any, existing: Any) -> None:
         self.to_add = to_add
         self.existing = existing

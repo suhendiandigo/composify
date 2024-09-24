@@ -1,7 +1,6 @@
 import asyncio
-from typing import Callable, Iterable, Literal, TypeVar
-
-from typing_extensions import TypeAlias
+from collections.abc import Callable, Iterable
+from typing import Literal, TypeAlias, TypeVar
 
 from composify.blueprint import Blueprint, BlueprintResolver
 from composify.builder import AsyncBuilder, Builder

@@ -23,7 +23,6 @@ class GenericChild(Base[T]):
 
 
 def test_get_generic():
-
     with pytest.raises(MissingReturnTypeAnnotation):
 
         @rule

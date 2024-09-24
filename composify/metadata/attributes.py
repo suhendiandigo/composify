@@ -19,7 +19,6 @@ def collect_attributes(type_: AnnotatedType) -> AttributeSet:
 
 
 class Name(str, BaseAttributeMetadata):
-
     def __repr__(self) -> str:
         return f"Name({self})"
 

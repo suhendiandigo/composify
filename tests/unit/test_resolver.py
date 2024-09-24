@@ -48,25 +48,17 @@ def test_plan_ordering(container, compare_blueprints):
             blueprint(
                 create_result,
                 param1=blueprint(infer_param_1, param=instance(Param, 0)),
-                param2=blueprint(
-                    infer_param_2, param=blueprint(default_param)
-                ),
+                param2=blueprint(infer_param_2, param=blueprint(default_param)),
             ),
             blueprint(
                 create_result,
-                param1=blueprint(
-                    infer_param_1, param=blueprint(default_param)
-                ),
+                param1=blueprint(infer_param_1, param=blueprint(default_param)),
                 param2=blueprint(infer_param_2, param=instance(Param, 0)),
             ),
             blueprint(
                 create_result,
-                param1=blueprint(
-                    infer_param_1, param=blueprint(default_param)
-                ),
-                param2=blueprint(
-                    infer_param_2, param=blueprint(default_param)
-                ),
+                param1=blueprint(infer_param_1, param=blueprint(default_param)),
+                param2=blueprint(infer_param_2, param=blueprint(default_param)),
             ),
         ],
     )
@@ -81,12 +73,8 @@ def test_rule_resolver(compare_blueprints):
             blueprint(create_direct_result, param=blueprint(default_param)),
             blueprint(
                 create_result,
-                param1=blueprint(
-                    infer_param_1, param=blueprint(default_param)
-                ),
-                param2=blueprint(
-                    infer_param_2, param=blueprint(default_param)
-                ),
+                param1=blueprint(infer_param_1, param=blueprint(default_param)),
+                param2=blueprint(infer_param_2, param=blueprint(default_param)),
             ),
         ],
     )

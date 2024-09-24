@@ -1,8 +1,8 @@
+from collections.abc import Iterable
 from dataclasses import dataclass, field
-from typing import Generic, Iterable, TypeVar
+from typing import Generic, TypeAlias, TypeVar
 
 from exceptiongroup import ExceptionGroup
-from typing_extensions import TypeAlias
 
 from composify.constructor import Constructor, ConstructorFunction
 from composify.errors import CyclicDependencyError, NoConstructorError
@@ -50,9 +50,9 @@ def _permutate_parameters(
 
 
 def permutate_parameters(
-    parameters: Iterable[tuple[str, tuple[Blueprint, ...]]]
+    parameters: Iterable[tuple[str, tuple[Blueprint, ...]]],
 ) -> tuple[tuple[_Parameters, int], ...]:
-    return _permutate_parameters(0, tuple(), tuple(parameters))
+    return _permutate_parameters(0, (), tuple(parameters))
 
 
 ConstructorName: TypeAlias = str
@@ -184,7 +184,7 @@ class BlueprintResolver:
         yield from constructions
 
     def resolve(self, target: type[T]) -> Iterable[Blueprint[T]]:
-        tracing = Tracing(tuple())
+        tracing = Tracing(())
         try:
             return sorted(
                 self._resolve(target, "__root__", tracing),

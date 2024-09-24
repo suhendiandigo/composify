@@ -22,7 +22,6 @@ class BuilderSaveTo(Protocol):
 
 
 class AsyncBuilder:
-
     _cache: dict[Blueprint[Any], asyncio.Task[Any]]
 
     def __init__(
@@ -65,17 +64,19 @@ class AsyncBuilder:
 
         results = tuple(await asyncio.gather(*tasks))
 
-        parameters = {name: result for name, result in zip(names, results)}
+        parameters = dict(zip(names, results, strict=True))
 
         if asyncio.iscoroutinefunction(blueprint.constructor):
             return await blueprint.constructor(**parameters)
         else:
             loop = asyncio.get_running_loop()
-            return await loop.run_in_executor(self._threadpool_executor, partial(blueprint.constructor, **parameters))  # type: ignore[arg-type]
+            return await loop.run_in_executor(
+                self._threadpool_executor,
+                partial(blueprint.constructor, **parameters),
+            )  # type: ignore[arg-type]
 
 
 class Builder:
-
     _cache: dict[Blueprint[Any], Any]
 
     def __init__(

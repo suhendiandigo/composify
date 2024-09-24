@@ -40,7 +40,6 @@ async def test_construct():
 
 
 class ExecutionCounter:
-
     def __init__(self) -> None:
         self.execution = 0
 
