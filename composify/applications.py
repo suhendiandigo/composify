@@ -1,11 +1,18 @@
 import asyncio
+import itertools
 from collections.abc import Callable, Iterable
-from typing import Literal, TypeAlias, TypeVar
+from typing import TypeVar
 
 from composify.blueprint import Blueprint, BlueprintResolver
 from composify.builder import AsyncBuilder, Builder
 from composify.container import Container
-from composify.errors import MultipleResolutionError, NoResolutionError
+from composify.errors import (
+    MultipleResolutionError,
+    NoConstructorError,
+    NoResolutionError,
+    ResolutionFailureError,
+)
+from composify.getter import Getter, ResolutionMode
 from composify.provider import (
     ConstructorProvider,
     ContainerInstanceProvider,
@@ -17,9 +24,6 @@ from composify.types import AnnotatedType
 T = TypeVar("T")
 
 
-ResolutionMode: TypeAlias = Literal["default", "select_first"]
-
-
 def _ensure_rule_type(rule: ConstructRule | Callable) -> ConstructRule:
     r = as_rule(rule)
     if r is None:
@@ -29,7 +33,19 @@ def _ensure_rule_type(rule: ConstructRule | Callable) -> ConstructRule:
     return r
 
 
-class Composify:
+def _skip_no_constructor_error(
+    exc: ResolutionFailureError,
+) -> ResolutionFailureError | None:
+    errors = tuple(
+        error
+        for error in exc.errors
+        if not isinstance(error, NoConstructorError)
+    )
+    if errors:
+        return ResolutionFailureError(exc.type_, exc.traces, errors)
+
+
+class Composify(Getter):
     def __init__(
         self,
         name: str | None = None,
@@ -67,9 +83,11 @@ class Composify:
         self._rules.register_rule(_ensure_rule_type(rule))
         self._resolver.clear_memo()
 
-    def add_rules(self, rules: Iterable[ConstructRule]) -> None:
+    def add_rules(self, *rules: Iterable[ConstructRule]) -> None:
         self._rules.register_rules(
-            r for rule in rules if (r := _ensure_rule_type(rule))
+            r
+            for rule in itertools.chain.from_iterable(rules)
+            if (r := _ensure_rule_type(rule))
         )
         self._resolver.clear_memo()
 
@@ -102,7 +120,13 @@ class Composify:
         return await self._async_builder.from_blueprint(plan)
 
     async def aget_all(self, type_: AnnotatedType[T]) -> Iterable[T]:
-        plans = tuple(self._resolver.resolve(type_))
+        try:
+            plans = tuple(self._resolver.resolve(type_))
+        except ResolutionFailureError as exc:
+            new_exc = _skip_no_constructor_error(exc)
+            if new_exc:
+                raise new_exc from exc
+            return ()
         return tuple(
             await asyncio.gather(
                 *(self._async_builder.from_blueprint(plan) for plan in plans)
@@ -118,6 +142,12 @@ class Composify:
         plan = self._select_blueprint(resolution_mode)(type_, plans)
         return self._builder.from_blueprint(plan)
 
-    def get_all(self, type_: AnnotatedType) -> Iterable[T]:
-        plans = tuple(self._resolver.resolve(type_))
+    def get_all(self, type_: AnnotatedType[T]) -> Iterable[T]:
+        try:
+            plans = tuple(self._resolver.resolve(type_))
+        except ResolutionFailureError as exc:
+            new_exc = _skip_no_constructor_error(exc)
+            if new_exc:
+                raise new_exc from exc
+            return ()
         return tuple(self._builder.from_blueprint(plan) for plan in plans)

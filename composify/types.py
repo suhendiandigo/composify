@@ -82,3 +82,7 @@ def get_type(type_: AnnotatedType) -> type:
     if origin is Annotated:
         type_ = get_args(type_)[0]
     return type_
+
+
+def resolve_type_name(value: type):
+    return f"{value.__module__}.{value.__qualname__}".replace(".<locals>", "")

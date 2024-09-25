@@ -1,11 +1,14 @@
 from collections.abc import Iterable
 from dataclasses import dataclass, field
-from typing import Generic, TypeAlias, TypeVar
-
-from exceptiongroup import ExceptionGroup
+from typing import Annotated, Generic, TypeAlias, TypeVar
 
 from composify.constructor import Constructor, ConstructorFunction
-from composify.errors import CyclicDependencyError, NoConstructorError
+from composify.errors import (
+    CyclicDependencyError,
+    NoConstructorError,
+    ResolutionFailureError,
+)
+from composify.metadata.attributes import ProvidedBy
 from composify.provider import ConstructorProvider
 from composify.types import AnnotatedType
 
@@ -147,7 +150,9 @@ class BlueprintResolver:
                             ),
                         )
                     ),
-                    output_type=plan.output_type,
+                    output_type=Annotated[
+                        plan.output_type, ProvidedBy(plan.source)
+                    ],
                     dependencies=parameter_permutation,
                     priority=(level, plan_order, i),
                 )
@@ -157,7 +162,9 @@ class BlueprintResolver:
                 source=plan.source,
                 constructor=plan.constructor,
                 is_async=plan.is_async,
-                output_type=plan.output_type,
+                output_type=Annotated[
+                    plan.output_type, ProvidedBy(plan.source)
+                ],
                 dependencies=frozenset(),
                 priority=(0, plan_order),
             )
@@ -177,10 +184,10 @@ class BlueprintResolver:
                 )
             except (NoConstructorError, CyclicDependencyError) as exc:
                 errors.append(exc)
-            except ExceptionGroup as exc:
-                errors.extend(exc.exceptions)
+            except ResolutionFailureError as exc:
+                errors.extend(exc.errors)
         if not constructions and errors:
-            raise ExceptionGroup("Failed to resolve", errors)
+            raise ResolutionFailureError(target, trace.traces, errors)
         yield from constructions
 
     def resolve(self, target: type[T]) -> Iterable[Blueprint[T]]:
@@ -191,4 +198,4 @@ class BlueprintResolver:
                 key=lambda x: x.priority,
             )
         except (NoConstructorError, CyclicDependencyError) as exc:
-            raise ExceptionGroup("Failed to resolve", [exc])
+            raise ResolutionFailureError(target, tracing.traces, [exc])

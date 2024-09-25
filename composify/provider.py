@@ -1,6 +1,6 @@
 from collections.abc import Iterable
 from dataclasses import dataclass
-from typing import Annotated, Any, Generic, Protocol, TypeVar
+from typing import Any, Generic, Protocol, TypeVar
 
 from composify.constructor import Constructor
 from composify.container import Container
@@ -56,12 +56,11 @@ class ContainerInstanceProvider(ConstructorProvider):
                 # This is to prevent container from providing instances
                 # provided by other providers.
                 return
-            source = f"{self._container}::{wrapper.name}"
             yield Constructor(
-                source=source,
+                source=f"{self._container}::{wrapper.name}",
                 constructor=wrapper,
                 is_async=False,
-                output_type=Annotated[type_, ProvidedBy(source)],
+                output_type=type_,
                 dependencies=(),
             )
         except InstanceNotFoundError:
@@ -83,11 +82,10 @@ class RuleBasedConstructorProvider(ConstructorProvider):
         if not rules:
             return
         for rule in rules:
-            source = f"rule::{rule.canonical_name}"
             yield Constructor(
-                source=source,
+                source=f"rule::{rule.canonical_name}",
                 constructor=rule.function,
                 is_async=rule.is_async,
-                output_type=Annotated[type_, ProvidedBy(source)],
+                output_type=type_,
                 dependencies=rule.parameter_types,
             )

@@ -1,3 +1,4 @@
+from collections.abc import Iterable
 from typing import Any, TypeAlias
 
 
@@ -34,6 +35,15 @@ class TypeConstructionResolutionError(ResolverError):
 
 Trace: TypeAlias = tuple[str, str, type]
 Traces: TypeAlias = tuple[Trace, ...]
+
+
+class ResolutionFailureError(TypeConstructionResolutionError):
+    def __init__(
+        self, type_: type, traces: Traces, errors: Iterable[ResolverError]
+    ) -> None:
+        super().__init__(type_, f"Failed to resolve for type {type_}")
+        self.traces = traces
+        self.errors = errors
 
 
 class TracedTypeConstructionResolutionError(TypeConstructionResolutionError):

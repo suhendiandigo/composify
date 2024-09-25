@@ -29,7 +29,7 @@ from composify.registry import (
     Key,
     TypedRegistry,
 )
-from composify.types import AnnotatedType, get_type
+from composify.types import AnnotatedType, get_type, resolve_type_name
 
 __all__ = ["rule", "as_rule"]
 
@@ -128,9 +128,7 @@ def rule_decorator(
         )
         for parameter in func_params
     )
-    effective_name = f"{func.__module__}.{func.__qualname__}".replace(
-        ".<locals>", ""
-    )
+    effective_name = resolve_type_name(func)
 
     rule = _make_rule(
         func,

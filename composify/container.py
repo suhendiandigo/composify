@@ -20,7 +20,7 @@ from composify.registry import (
     Key,
     TypedRegistry,
 )
-from composify.types import AnnotatedType, get_type
+from composify.types import AnnotatedType, get_type, resolve_type_name
 
 E = TypeVar("E")
 
@@ -56,12 +56,8 @@ class InstanceWrapper(Entry, Generic[E]):
         return f"Instance(name={self.name}, type={self.instance_type!r}, value={self.instance!r}, attributes={self.attributes!r}, is_primary={self.is_primary!r})"
 
 
-def _resolve_type_name(value: type):
-    return f"{value.__module__}.{value.__qualname__}".replace(".<locals>", "")
-
-
 def _resolve_instance_name(value: Any):
-    return _resolve_type_name(value.__class__)
+    return resolve_type_name(value.__class__)
 
 
 class ContainerUniqueEntryValidator(EntriesValidator[InstanceWrapper]):
