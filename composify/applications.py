@@ -13,6 +13,7 @@ from composify.errors import (
     ResolutionFailureError,
 )
 from composify.getter import Getter, ResolutionMode
+from composify.injector import Injector
 from composify.provider import (
     ConstructorProvider,
     ContainerInstanceProvider,
@@ -61,9 +62,11 @@ class Composify(Getter):
         )
         self._async_builder = AsyncBuilder(save_to=self._container)
         self._builder = Builder(save_to=self._container)
+        self._injector = Injector(self)
 
         self._container.add(self)
         self._container.add(self._container)
+        self._container.add(self._injector)
 
     def _select_blueprint(self, resolution_mode: ResolutionMode = "default"):
         match resolution_mode:
@@ -75,6 +78,10 @@ class Composify(Getter):
     @property
     def container(self) -> Container:
         return self._container
+
+    @property
+    def inject(self) -> Injector:
+        return self._injector
 
     @property
     def add(self):

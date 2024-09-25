@@ -4,6 +4,7 @@ __version__ = "0.1.0"
 from .applications import Composify
 from .container import Container
 from .getter import Getter, ResolutionMode
+from .injector import Injector
 from .rules import collect_rules, rule
 
 __all__ = [
@@ -13,4 +14,5 @@ __all__ = [
     "rule",
     "Getter",
     "ResolutionMode",
+    "Injector",
 ]

@@ -4,19 +4,9 @@ from collections.abc import Awaitable, Callable, Iterable, Mapping
 from dataclasses import dataclass
 from functools import partial, wraps
 from types import FrameType, ModuleType
-from typing import (
-    Annotated,
-    Any,
-    Generic,
-    ParamSpec,
-    TypeAlias,
-    TypeVar,
-    get_origin,
-    get_type_hints,
-)
+from typing import Any, Generic, ParamSpec, TypeAlias, TypeVar, get_type_hints
 
 from composify.errors import (
-    InvalidTypeAnnotation,
     MissingParameterTypeAnnotation,
     MissingReturnTypeAnnotation,
 )
@@ -29,7 +19,12 @@ from composify.registry import (
     Key,
     TypedRegistry,
 )
-from composify.types import AnnotatedType, get_type, resolve_type_name
+from composify.types import (
+    AnnotatedType,
+    ensure_type_annotation,
+    get_type,
+    resolve_type_name,
+)
 
 __all__ = ["rule", "as_rule"]
 
@@ -86,30 +81,13 @@ def _make_rule(
     )
 
 
-def _ensure_type_annotation(
-    *,
-    type_annotation: type | None,
-    name: str,
-    raise_type: type[InvalidTypeAnnotation],
-) -> type:
-    if type_annotation is None:
-        raise raise_type(f"{name} is missing a type annotation.")
-    if not isinstance(type_annotation, type):
-        origin = get_origin(type_annotation)
-        if origin is not Annotated:
-            raise raise_type(
-                f"The annotation for {name} must be a type, got {type_annotation} of type {type(type_annotation)}."
-            )
-    return type_annotation
-
-
 def rule_decorator(
     func: F,
 ) -> F | ConstructRule:
     func_params = inspect.signature(func).parameters
     func_id = f"@rule {func.__module__}:{func.__name__}"
     type_hints = get_type_hints(func, include_extras=True)
-    return_type = _ensure_type_annotation(
+    return_type = ensure_type_annotation(
         type_annotation=type_hints.get("return"),
         name=f"{func_id} return",
         raise_type=MissingReturnTypeAnnotation,
@@ -120,7 +98,7 @@ def rule_decorator(
     parameter_types = tuple(
         (
             parameter,
-            _ensure_type_annotation(
+            ensure_type_annotation(
                 type_annotation=type_hints.get(parameter),
                 name=f"{func_id} parameter {parameter}",
                 raise_type=MissingParameterTypeAnnotation,
