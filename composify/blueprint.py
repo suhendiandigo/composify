@@ -3,11 +3,6 @@ from dataclasses import dataclass, field
 from typing import Generic, TypeAlias, TypeVar
 
 from composify._qualifiers import Resolution
-from composify._resolutions import (
-    DEFAULT_RESOLUTION_MODE,
-    RESOLUTION_MODES,
-    ResolutionMode,
-)
 from composify.constructor import Constructor, ConstructorFunction
 from composify.errors import (
     CyclicDependencyError,
@@ -18,6 +13,11 @@ from composify.errors import (
 )
 from composify.metadata.qualifiers import collect_qualifiers
 from composify.provider import ConstructorProvider
+from composify.resolutions import (
+    DEFAULT_RESOLUTION_MODE,
+    RESOLUTION_MODES,
+    ResolutionMode,
+)
 from composify.types import AnnotatedType
 
 T = TypeVar("T")

@@ -1,7 +1,7 @@
 from dataclasses import dataclass
 
-from composify._resolutions import EXHAUSTIVE, SELECT_FIRST, ResolutionMode
 from composify.metadata.qualifiers import BaseQualifierMetadata
+from composify.resolutions import EXHAUSTIVE, SELECT_FIRST, ResolutionMode
 
 
 @dataclass(frozen=True, slots=True)
