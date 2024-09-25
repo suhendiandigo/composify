@@ -2,10 +2,10 @@ from collections.abc import Iterable
 from dataclasses import dataclass
 from typing import Any, Generic, Protocol, TypeVar
 
+from composify.attributes import ProvidedBy
 from composify.constructor import Constructor
 from composify.container import Container
 from composify.errors import InstanceNotFoundError
-from composify.metadata.attributes import ProvidedBy
 from composify.rules import ConstructRule, RuleRegistry
 from composify.types import AnnotatedType
 

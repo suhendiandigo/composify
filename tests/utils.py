@@ -1,10 +1,11 @@
 import asyncio
 from typing import Any
 
+from composify.attributes import Name
 from composify.blueprint import Blueprint, BlueprintResolver
 from composify.constructor import ConstructorFunction
 from composify.container import InstanceWrapper
-from composify.metadata.attributes import AttributeSet, Name
+from composify.metadata.attributes import AttributeSet
 from composify.provider import (
     ConstructorProvider,
     RuleBasedConstructorProvider,

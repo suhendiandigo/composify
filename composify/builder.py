@@ -3,10 +3,10 @@ from concurrent.futures import ThreadPoolExecutor
 from functools import partial
 from typing import Annotated, Any, Protocol, TypeVar, cast
 
+from composify.attributes import ProvidedBy
 from composify.blueprint import Blueprint
 from composify.constructor import SyncConstructorFunction
 from composify.errors import AsyncBlueprintError
-from composify.metadata.attributes import ProvidedBy
 
 __all__ = [
     "AsyncBuilder",

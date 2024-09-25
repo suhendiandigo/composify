@@ -4,6 +4,7 @@ from collections.abc import Collection, Iterable, Sequence
 from dataclasses import dataclass, field
 from typing import Annotated, Any, Generic, TypeVar, get_origin
 
+from composify.attributes import Name
 from composify.errors import (
     AmbiguousInstanceError,
     ConflictingInstanceNameError,
@@ -13,8 +14,7 @@ from composify.errors import (
     MultiplePrimaryInstanceError,
 )
 from composify.get import Get
-from composify.metadata import Name, collect_attributes
-from composify.metadata.attributes import AttributeSet
+from composify.metadata import AttributeSet, collect_attributes
 from composify.registry import (
     EntriesCollator,
     EntriesFilterer,

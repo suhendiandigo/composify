@@ -4,7 +4,7 @@ from typing import Annotated
 import pytest
 
 from composify.errors import NoConstructorError, ResolutionFailureError
-from composify.metadata.qualifiers import DisallowSubclass
+from composify.qualifiers import DisallowSubclass
 from composify.rules import rule
 from tests.utils import blueprint, create_rule_resolver
 

@@ -10,8 +10,7 @@ from composify.errors import (
     MissingParameterTypeAnnotation,
     MissingReturnTypeAnnotation,
 )
-from composify.metadata import collect_attributes
-from composify.metadata.attributes import AttributeSet
+from composify.metadata import AttributeSet, collect_attributes
 from composify.registry import (
     EntriesCollator,
     EntriesFilterer,

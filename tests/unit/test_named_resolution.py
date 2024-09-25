@@ -3,8 +3,8 @@ from typing import Annotated
 
 import pytest
 
+from composify.attributes import Name
 from composify.errors import NoConstructorError, ResolutionFailureError
-from composify.metadata import Name
 from composify.rules import collect_rules, rule
 from tests.utils import blueprint, create_rule_resolver
 

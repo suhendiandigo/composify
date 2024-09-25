@@ -7,11 +7,8 @@ from typing import Generic, TypeAlias, TypeVar
 
 from composify.errors import DuplicatedEntryError
 from composify.metadata.attributes import AttributeSet, collect_attributes
-from composify.metadata.qualifiers import (
-    DisallowSubclass,
-    QualifierSet,
-    collect_qualifiers,
-)
+from composify.metadata.qualifiers import QualifierSet, collect_qualifiers
+from composify.qualifiers import DisallowSubclass
 from composify.types import AnnotatedType, get_type, resolve_base_types
 
 Key: TypeAlias = AnnotatedType
