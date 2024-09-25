@@ -135,7 +135,11 @@ class BlueprintResolver:
                 case "exhaustive":
                     result = tuple(self._raw_create_plans(target))
                 case "select_first":
-                    result = (next(iter(self._raw_create_plans(target))),)
+                    plan = next(iter(self._raw_create_plans(target)), None)
+                    if plan is not None:
+                        result = (plan,)
+                    else:
+                        result = ()
                 case _:
                     raise InvalidResolutionModeError(mode)
 
