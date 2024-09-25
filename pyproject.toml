@@ -19,6 +19,9 @@ license = {text = "MIT"}
 fastapi = [
     "fastapi>=0.94.0",
 ]
+pydantic-settings = [
+    "pydantic-settings>=2.0.0",
+]
 
 [build-system]
 requires = ["pdm-backend"]

@@ -76,7 +76,7 @@ jobs:
     - name: install deps
       run: |
         pdm venv create --with-pip --force $PYTHON
-        pdm install -G testing -G fastapi
+        pdm install -G testing -G fastapi -G pydantic-settings
 
     - run: pdm info && pdm list
 
