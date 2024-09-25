@@ -1,3 +1,5 @@
+"""This module contains implementation for Blueprint."""
+
 from collections.abc import Iterable, Sequence
 from dataclasses import dataclass, field
 from typing import Annotated, Generic, TypeAlias, TypeVar
@@ -18,7 +20,7 @@ from composify.resolutions import (
     RESOLUTION_MODES,
     ResolutionMode,
 )
-from composify.types import AnnotatedType, get_type
+from composify.types import AnnotatedType
 
 T = TypeVar("T")
 
@@ -71,13 +73,13 @@ ConstructorResultName: TypeAlias = str
 
 
 @dataclass(frozen=True)
-class Tracing:
+class _Tracing:
     traces: tuple[tuple[ConstructorName, ConstructorResultName, type], ...]
 
     def chain(
         self, trace: tuple[ConstructorName, ConstructorResultName, type]
-    ) -> "Tracing":
-        return Tracing(traces=(*self.traces, trace))
+    ) -> "_Tracing":
+        return _Tracing(traces=(*self.traces, trace))
 
 
 class BlueprintResolver:
@@ -95,6 +97,7 @@ class BlueprintResolver:
         self._default_resolution = default_resolution
 
     def clear_memo(self) -> None:
+        """Clear blueprint memo."""
         self._memo.clear()
 
     def register_provider(self, provider: ConstructorProvider) -> None:
@@ -153,7 +156,7 @@ class BlueprintResolver:
         plan: Constructor[T],
         plan_order: int,
         mode: ResolutionMode,
-        trace: Tracing,
+        trace: _Tracing,
     ) -> Iterable[Blueprint[T]]:
         curr_trace = plan.source, name, target
         tracing = trace.chain(curr_trace)
@@ -208,14 +211,18 @@ class BlueprintResolver:
             )
 
     def _resolve(
-        self, target: type[T], name: str, mode: ResolutionMode, trace: Tracing
+        self,
+        target: AnnotatedType[T],
+        name: str,
+        mode: ResolutionMode,
+        trace: _Tracing,
     ) -> Iterable[Blueprint[T]]:
         qualifiers = collect_qualifiers(target)
-        type_ = get_type(target)
+        type_ = target
         if resolution := qualifiers.get(Resolution):
             mode = resolution.mode
         else:
-            type_ = Annotated[type_, Resolution(mode)]
+            type_ = Annotated[type_, Resolution(mode)]  # type: ignore[assignment]
         plans = self._create_plans(type_, mode)
         if not plans:
             raise NoConstructorError(target, trace.traces)
@@ -243,13 +250,26 @@ class BlueprintResolver:
 
     def resolve(
         self,
-        target: type[T],
+        target: AnnotatedType[T],
         mode: ResolutionMode | None = None,
     ) -> Iterable[Blueprint[T]]:
+        """Generate blueprint for a type.
+
+        Args:
+            target (type[T]): The type to generate for.
+            mode (ResolutionMode | None, optional): The resolution mode. Defaults to select_first.
+
+        Raises:
+            InvalidResolutionModeError: Raised if the resolution mode is invalid.
+            ResolutionFailureError: Raised if there is no generated blueprint.
+
+        Returns:
+            Iterable[Blueprint[T]]: The blueprint for target type.
+        """
         mode = mode or self._default_resolution
         if mode not in RESOLUTION_MODES:
             raise InvalidResolutionModeError(mode)
-        tracing = Tracing(())
+        tracing = _Tracing(())
         try:
             return sorted(
                 self._resolve(

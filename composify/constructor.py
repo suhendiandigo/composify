@@ -1,3 +1,5 @@
+"""This module contains definition for Constructor info."""
+
 from collections.abc import Awaitable, Callable
 from dataclasses import dataclass
 from typing import Generic, ParamSpec, TypeAlias, TypeVar
@@ -22,6 +24,8 @@ ConstructorFunction: TypeAlias = (
 
 @dataclass(frozen=True)
 class Constructor(Generic[T]):
+    """Constructor information for a type."""
+
     source: str
     constructor: ConstructorFunction[T]
     is_async: bool

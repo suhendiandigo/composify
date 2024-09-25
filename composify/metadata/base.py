@@ -1,3 +1,5 @@
+"""Base implementation for all annotated metadata."""
+
 from functools import partial
 from typing import Any, TypeVar, cast
 
@@ -7,6 +9,8 @@ from composify.types import AnnotatedType
 
 
 class BaseMetadata:
+    """Base class for all annotated metadata."""
+
     __slots__ = ()
 
 
@@ -15,9 +19,12 @@ T = TypeVar("T")
 
 
 class MetadataSet(frozenset[M]):
+    """A frozenset of BaseMetadata."""
+
     _mapping: dict[type[M], M] | None
 
     def __new__(cls, *args, **kwargs) -> Self:
+        """Create new MetadataSet."""
         self = super().__new__(cls, *args, **kwargs)
         self._mapping = None
 
@@ -27,6 +34,15 @@ class MetadataSet(frozenset[M]):
         return {type(metadata): metadata for metadata in self}
 
     def get(self, key: type[T], default: T | None = None) -> T | None:
+        """Get a metadata value.
+
+        Args:
+            key (type[T]): The Metadata type to retrieve.
+            default (T | None, optional): Returned if the key does not exist in the set. Defaults to None.
+
+        Returns:
+            T | None: The metadata object.
+        """
         if self._mapping is None:
             self._mapping = self._generate_mapping()
         return cast(T, self._mapping.get(cast(type[M], key), default))

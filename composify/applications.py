@@ -1,17 +1,27 @@
+"""Main Composify implementation."""
+
 import asyncio
 import itertools
 from collections.abc import Awaitable, Callable, Iterable, Sequence
 from typing import TypeVar
 
-from composify.blueprint import DEFAULT_RESOLUTION_MODE, BlueprintResolver
+from composify.blueprint import (
+    DEFAULT_RESOLUTION_MODE,
+    Blueprint,
+    BlueprintResolver,
+)
 from composify.builder import AsyncBuilder, Builder
 from composify.container import Container, ContainerGetter
-from composify.errors import NoConstructorError, ResolutionFailureError
+from composify.errors import (
+    MultipleResolutionError,
+    NoConstructorError,
+    NoResolutionError,
+    ResolutionFailureError,
+)
 from composify.get_or_create import (
     AsyncGetOrCreate,
     GetOrCreate,
     ResolutionMode,
-    select_blueprint,
 )
 from composify.injector import Injector
 from composify.provider import (
@@ -47,7 +57,17 @@ def _skip_no_constructor_error(
     return None
 
 
+def _select_blueprint(type_: AnnotatedType[T], plans: tuple[Blueprint[T], ...]):
+    if len(plans) > 1:
+        raise MultipleResolutionError(type_, plans)
+    elif len(plans) == 0:
+        raise NoResolutionError(type_)
+    return plans[0]
+
+
 class ComposifyGetOrCreate(GetOrCreate):
+    """Synchronous Get or Create protocol implementation using Composify. Only support non async @rule."""
+
     def __init__(
         self,
         resolver: BlueprintResolver,
@@ -63,10 +83,21 @@ class ComposifyGetOrCreate(GetOrCreate):
         type_: AnnotatedType[T],
         resolution_mode: ResolutionMode | None = None,
     ) -> T:
-        plans = tuple(
-            self._resolver.resolve(type_, self._resolution(resolution_mode))
+        """Get one instance of T.
+
+        Args:
+            type_ (AnnotatedType[T]): The type to get.
+            resolution_mode (ResolutionMode | None, optional): How the dependency graph is resolved. Defaults to select_first.
+
+        Returns:
+            T: An instance of T
+        """
+        plan = _select_blueprint(
+            type_,
+            tuple(
+                self._resolver.resolve(type_, self._resolution(resolution_mode))
+            ),
         )
-        plan = select_blueprint(type_, plans)
         return self._builder.from_blueprint(plan)
 
     def all(
@@ -74,8 +105,17 @@ class ComposifyGetOrCreate(GetOrCreate):
         type_: AnnotatedType[T],
         resolution_mode: ResolutionMode | None = None,
     ) -> Sequence[T]:
+        """Get all instance of T.
+
+        Args:
+            type_ (AnnotatedType[T]): The type to get.
+            resolution_mode (ResolutionMode | None, optional): How the dependency graph is resolved. Defaults to select_first.
+
+        Returns:
+            Sequence[T]: All instances of T.
+        """
         try:
-            plans = tuple(
+            plans = tuple(  # type: ignore[var-annotated]
                 self._resolver.resolve(type_, self._resolution(resolution_mode))
             )
         except ResolutionFailureError as exc:
@@ -87,6 +127,8 @@ class ComposifyGetOrCreate(GetOrCreate):
 
 
 class ComposifyAsyncGetOrCreate(AsyncGetOrCreate):
+    """Asynchronous Get or Create protocol implementation using Composify."""
+
     def __init__(
         self,
         resolver: BlueprintResolver,
@@ -102,10 +144,21 @@ class ComposifyAsyncGetOrCreate(AsyncGetOrCreate):
         type_: AnnotatedType[T],
         resolution_mode: ResolutionMode | None = None,
     ) -> T:
-        plans = tuple(
-            self._resolver.resolve(type_, self._resolution(resolution_mode))
+        """Get one instance of T.
+
+        Args:
+            type_ (AnnotatedType[T]): The type to get.
+            resolution_mode (ResolutionMode | None, optional): How the dependency graph is resolved. Defaults to select_first.
+
+        Returns:
+            T: An instance of T
+        """
+        plan = _select_blueprint(
+            type_,
+            tuple(
+                self._resolver.resolve(type_, self._resolution(resolution_mode))
+            ),
         )
-        plan = select_blueprint(type_, plans)
         return await self._builder.from_blueprint(plan)
 
     async def all(
@@ -113,8 +166,17 @@ class ComposifyAsyncGetOrCreate(AsyncGetOrCreate):
         type_: AnnotatedType[T],
         resolution_mode: ResolutionMode | None = None,
     ) -> Sequence[T]:
+        """Get all instance of T.
+
+        Args:
+            type_ (AnnotatedType[T]): The type to get.
+            resolution_mode (ResolutionMode | None, optional): How the dependency graph is resolved. Defaults to select_first.
+
+        Returns:
+            Sequence[T]: All instances of T.
+        """
         try:
-            plans = tuple(
+            plans = tuple(  # type: ignore[var-annotated]
                 self._resolver.resolve(type_, self._resolution(resolution_mode))
             )
         except ResolutionFailureError as exc:
@@ -130,6 +192,13 @@ class ComposifyAsyncGetOrCreate(AsyncGetOrCreate):
 
 
 class Composify:
+    """Composify app class. The main entry point to use Composify.
+
+    Example:
+        composify = Composify()
+
+    """
+
     def __init__(
         self,
         name: str | None = None,
@@ -151,12 +220,14 @@ class Composify:
         self._async_builder = AsyncBuilder(save_to=self._container)
         self._builder = Builder(save_to=self._container)
         self._getter = ContainerGetter(self._container)
-        self._injector = Injector(self._getter)
         self._get_or_create = ComposifyGetOrCreate(
             self._resolver, self._builder, default_resolution
         )
         self._async_get_or_create = ComposifyAsyncGetOrCreate(
             self._resolver, self._async_builder, default_resolution
+        )
+        self._injector = Injector(
+            self._get_or_create, self._async_get_or_create
         )
 
         self._container.add(self)
@@ -173,25 +244,40 @@ class Composify:
 
     @property
     def container(self) -> Container:
+        """The container of this composify object."""
         return self._container
 
     @property
     def inject(self) -> Injector:
+        """Wraps a function a supply its parameter using GetOrCreate.
+
+        Args:
+            function (Callable[..., A]): The function to wrap.
+            params (dict[str, Any] | None, optional): Additional parameters. Defaults to None.
+            exclude (set[str] | None, optional): Parameters to exclude from injection. Defaults to None.
+
+        Returns:
+            Callable[..., A]: An auto-wired function.
+        """
         return self._injector
 
     @property
     def default_resolution(self) -> ResolutionMode:
+        """The default resolution mode."""
         return self._default_resolution
 
     @property
     def add(self):
+        """Add a new object to the container."""
         return self._container.add
 
     def add_rule(self, rule: ConstructRule | Callable) -> None:
+        """Register a new rule."""
         self._rules.register_rule(_ensure_rule_type(rule))
         self._resolver.clear_memo()
 
     def add_rules(self, *rules: Iterable[ConstructRule]) -> None:
+        """Register multiple new rules."""
         self._rules.register_rules(
             r
             for rule in itertools.chain.from_iterable(rules)
@@ -200,9 +286,11 @@ class Composify:
         self._resolver.clear_memo()
 
     def register_provider(self, provider: ConstructorProvider) -> None:
+        """Register a new provider."""
         self._resolver.register_provider(provider)
 
     def register_providers(self, *providers: ConstructorProvider) -> None:
+        """Register multiple new providers."""
         self._resolver.register_providers(providers)
 
     def aget_or_create(
@@ -210,6 +298,15 @@ class Composify:
         type_: AnnotatedType[T],
         resolution_mode: ResolutionMode | None = None,
     ) -> Awaitable[T]:
+        """Get one instance of T.
+
+        Args:
+            type_ (AnnotatedType[T]): The type to get.
+            resolution_mode (ResolutionMode | None, optional): How the dependency graph is resolved. Defaults to select_first.
+
+        Returns:
+            T: An instance of T
+        """
         return self._async_get_or_create.one(type_, resolution_mode)
 
     def aget_or_create_all(
@@ -217,6 +314,15 @@ class Composify:
         type_: AnnotatedType[T],
         resolution_mode: ResolutionMode | None = None,
     ) -> Awaitable[Sequence[T]]:
+        """Get all instance of T.
+
+        Args:
+            type_ (AnnotatedType[T]): The type to get.
+            resolution_mode (ResolutionMode | None, optional): How the dependency graph is resolved. Defaults to select_first.
+
+        Returns:
+            Sequence[T]: All instances of T.
+        """
         return self._async_get_or_create.all(type_, resolution_mode)
 
     def get_or_create(
@@ -224,6 +330,15 @@ class Composify:
         type_: AnnotatedType[T],
         resolution_mode: ResolutionMode | None = None,
     ) -> T:
+        """Get one instance of T.
+
+        Args:
+            type_ (AnnotatedType[T]): The type to get.
+            resolution_mode (ResolutionMode | None, optional): How the dependency graph is resolved. Defaults to select_first.
+
+        Returns:
+            T: An instance of T
+        """
         return self._get_or_create.one(type_, resolution_mode)
 
     def get_or_create_all(
@@ -231,4 +346,13 @@ class Composify:
         type_: AnnotatedType[T],
         resolution_mode: ResolutionMode | None = None,
     ) -> Sequence[T]:
+        """Get all instance of T.
+
+        Args:
+            type_ (AnnotatedType[T]): The type to get.
+            resolution_mode (ResolutionMode | None, optional): How the dependency graph is resolved. Defaults to select_first.
+
+        Returns:
+            Sequence[T]: All instances of T.
+        """
         return self._get_or_create.all(type_, resolution_mode)

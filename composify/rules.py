@@ -1,8 +1,24 @@
+"""This modules contains the backbone @rule decorator.
+
+Example:
+    from composify import collect_rules, rule
+
+    @rule
+    def create_default() -> int:
+        return 1
+
+    rules = collect_rules()
+
+    print(len(rules) == 1)
+    #> True
+
+"""
+
 import asyncio
 import inspect
 from collections.abc import Awaitable, Callable, Iterable, Mapping
 from dataclasses import dataclass
-from functools import partial, wraps
+from functools import partial
 from types import FrameType, ModuleType
 from typing import (
     Annotated,
@@ -14,25 +30,21 @@ from typing import (
     get_type_hints,
 )
 
-from composify.errors import (
-    MissingParameterTypeAnnotation,
-    MissingReturnTypeAnnotation,
-)
-from composify.metadata import AttributeSet, collect_attributes
-from composify.metadata.qualifiers import BaseQualifierMetadata
-from composify.registry import (
+from composify._helper import ensure_type_annotation, resolve_type_name
+from composify._registry import (
     EntriesCollator,
     EntriesFilterer,
     Entry,
     Key,
     TypedRegistry,
 )
-from composify.types import (
-    AnnotatedType,
-    ensure_type_annotation,
-    get_type,
-    resolve_type_name,
+from composify.errors import (
+    MissingParameterTypeAnnotation,
+    MissingReturnTypeAnnotation,
 )
+from composify.metadata import AttributeSet, collect_attributes
+from composify.metadata.qualifiers import BaseQualifierMetadata
+from composify.types import AnnotatedType, get_type
 
 __all__ = ["rule", "as_rule"]
 
@@ -82,7 +94,7 @@ def _add_qualifiers(
     return type_
 
 
-def rule_decorator(
+def _rule_decorator(
     decorated: F,
     *,
     priority: int,
@@ -140,7 +152,6 @@ def rule_decorator(
     return decorated
 
 
-@wraps(rule_decorator)
 def rule(
     f: RuleFunctionType | None = None,
     /,
@@ -148,18 +159,36 @@ def rule(
     priority: int = 0,
     dependency_qualifiers: Iterable[BaseQualifierMetadata] | None = None,
 ):
+    """Marks a function or a class as a rule. Allowing collection via collect_rules().
+
+    Args:
+        f (RuleFunctionType | None, optional): The function or class to mark as a rule. Defaults to None.
+        priority (int, optional): The resolution priority. Higher value equals higher priority. Defaults to 0.
+        dependency_qualifiers (Iterable[BaseQualifierMetadata] | None, optional): Add qualifiers to all dependencies. Defaults to None.
+
+    Returns:
+        The input function or class.
+    """
     if f is None:
         return partial(
-            rule_decorator,
+            _rule_decorator,
             priority=priority,
             dependency_qualifiers=dependency_qualifiers,
         )
-    return rule_decorator(
+    return _rule_decorator(
         f, priority=priority, dependency_qualifiers=dependency_qualifiers
     )
 
 
 def as_rule(f: Any) -> ConstructRule | None:
+    """Returns the ConstructRule associated with the object.
+
+    Args:
+        f (Any): The object to cast as ConstructRule.
+
+    Returns:
+        ConstructRule | None: Returns the ConstructRule if the object has been marked with @rule; otherwise None.
+    """
     if isinstance(f, ConstructRule):
         return f
     return getattr(f, RULE_ATTR, None)

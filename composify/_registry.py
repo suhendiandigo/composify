@@ -74,10 +74,19 @@ class DefaultEntriesFilterer(EntriesFilterer[E]):
 
 
 class EntriesCollator(Protocol, Generic[E]):
-    """Raise errors if a new entry do not fit with existing entries.
-    Because of duplicated value, etc."""
+    """Combine entries together.
+    Raise errors if a new entry do not fit with existing entries.
+    Because of duplicated value, etc.
+    """
 
     def collate_entries(self, entry: E, entries: list[E]) -> None:
+        """Collate entries.
+
+        Args:
+            entry (E): Entry to add.
+            entries (list[E]): Entries to add to
+
+        """
         raise NotImplementedError()
 
 
@@ -85,6 +94,15 @@ class DefaultEntriesCollator(EntriesCollator[E]):
     """By default we only validate based on equality."""
 
     def collate_entries(self, entry: E, entries: list[E]) -> None:
+        """Collate entries.
+
+        Args:
+            entry (E): Entry to add.
+            entries (list[E]): Entries to add to
+
+        Raises:
+            DuplicatedEntryError: If entries are duplicated.
+        """
         for other in entries:
             if entry == other:
                 raise DuplicatedEntryError(entry, other)
@@ -120,11 +138,12 @@ class TypedRegistry(Generic[E]):
         self._entries_collator.collate_entries(entry, entries)
 
     def _add_entry(self, key: Key, entry: E) -> None:
+        type_ = get_type(key)
         if key in self._entries:
-            entries = self._entries[key]
+            entries = self._entries[type_]
             self._collate_entries(entry, entries)
         else:
-            self._entries[key] = [entry]
+            self._entries[type_] = [entry]
 
     def add_entry(self, entry: E) -> None:
         for type_ in resolve_base_types(entry.key):

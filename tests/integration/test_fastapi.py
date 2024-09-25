@@ -13,7 +13,7 @@ from composify.fastapi import (
     default_rules,
     router_rule,
 )
-from composify.fastapi.hooks import Lifespan
+from composify.fastapi.lifespan import Lifespan
 from composify.rules import as_rule, collect_rules
 
 

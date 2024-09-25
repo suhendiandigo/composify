@@ -1,5 +1,7 @@
+"""Supports for FastAPI integration."""
+
 from .app import create_app, default_rules
-from .hooks import Lifespan, LifespanHook
+from .lifespan import Lifespan, LifespanHook
 from .router import APIRouterCollection, router_rule
 
 __all__ = (

@@ -1,3 +1,5 @@
+"""This module contains resolution mode for the dependency graph."""
+
 from typing import Literal, TypeAlias
 
 ResolutionMode: TypeAlias = Literal["exhaustive", "select_first"]

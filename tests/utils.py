@@ -1,6 +1,7 @@
 import asyncio
 from typing import Any
 
+from composify._helper import resolve_type_name
 from composify.attributes import Name
 from composify.blueprint import Blueprint, BlueprintResolver
 from composify.constructor import ConstructorFunction
@@ -13,7 +14,6 @@ from composify.provider import (
 )
 from composify.resolutions import EXHAUSTIVE
 from composify.rules import ConstructRule, RuleRegistry, as_rule
-from composify.types import resolve_type_name
 
 
 def create_resolver(*factories: ConstructorProvider):

@@ -1,26 +1,43 @@
+"""Support for dependency injection as a decorator."""
+
 import asyncio
 import inspect
 from collections.abc import Callable, Coroutine
 from functools import wraps
 from typing import Any, TypeVar, get_type_hints
 
+from composify._helper import ensure_type_annotation
 from composify.errors import MissingParameterTypeAnnotation
-from composify.get import Get
-from composify.types import ensure_type_annotation
+from composify.get_or_create import AsyncGetOrCreate, GetOrCreate
 
 A = TypeVar("A", Any, Coroutine[Any, Any, Any])
 
 
 class Injector:
-    def __init__(self, getter: Get) -> None:
-        self._getter = getter
+    """This class provides the functionality to auto-wire a function."""
+
+    def __init__(
+        self, get_or_create: GetOrCreate, async_get_or_create: AsyncGetOrCreate
+    ) -> None:
+        self._get_or_create = get_or_create
+        self._async_get_or_create = async_get_or_create
 
     def __call__(
         self,
         function: Callable[..., A],
         params: dict[str, Any] | None = None,
         exclude: set[str] | None = None,
-    ) -> Callable[[], A]:
+    ) -> Callable[..., A]:
+        """Wraps a function a supply its parameter using GetOrCreate.
+
+        Args:
+            function (Callable[..., A]): The function to wrap.
+            params (dict[str, Any] | None, optional): Additional parameters. Defaults to None.
+            exclude (set[str] | None, optional): Parameters to exclude from injection. Defaults to None.
+
+        Returns:
+            Callable[..., A]: An auto-wired function.
+        """
         func_id = f"{function.__module__}:{function.__name__}"
         func_params = inspect.signature(function).parameters
         type_hints = get_type_hints(function, include_extras=True)
@@ -54,7 +71,7 @@ class Injector:
             async def wrapper(*args, **kwargs):
                 names, coroutines = zip(
                     *(
-                        (name, self._getter.aget(type_annotation))
+                        (name, self._async_get_or_create.one(type_annotation))
                         for name, type_annotation in parameter_types
                     ),
                     strict=True,
@@ -76,7 +93,7 @@ class Injector:
             @wraps(function)
             def wrapper(*args, **kwargs):
                 parameters = {
-                    name: self._getter.one(type_annotation)
+                    name: self._get_or_create.one(type_annotation)
                     for name, type_annotation in parameter_types
                 }
                 if params:

@@ -1,12 +1,18 @@
+"""Module containing errors classes."""
+
 from collections.abc import Iterable, Sequence
 from typing import Any, TypeAlias
 
 
 class ResolverError(Exception):
+    """Base class for all resolution errors."""
+
     pass
 
 
 class InvalidResolutionModeError(ResolverError):
+    """Raised for invalid resolution mode."""
+
     def __init__(self, mode: str) -> None:
         self.mode = mode
         super().__init__(
@@ -15,6 +21,8 @@ class InvalidResolutionModeError(ResolverError):
 
 
 class MultipleResolutionError(ResolverError):
+    """Raised when there are multiple resolutions for a type."""
+
     def __init__(self, type_: type, resolutions: Any) -> None:
         self.type_ = type_
         self.resolutions = resolutions
@@ -24,6 +32,8 @@ class MultipleResolutionError(ResolverError):
 
 
 class NoResolutionError(ResolverError):
+    """Raised when there is no resolution for a type."""
+
     def __init__(
         self,
         type_: type,
@@ -36,6 +46,8 @@ class NoResolutionError(ResolverError):
 
 
 class TypeConstructionResolutionError(ResolverError):
+    """Raised when an error ocurred in a blueprint resolution."""
+
     def __init__(self, type_: type, msg: str) -> None:
         super().__init__(msg)
         self.type_ = type_
@@ -56,6 +68,10 @@ def _format_traces(traces: Traces) -> str:
 
 
 class ResolutionFailureError(TypeConstructionResolutionError):
+    """Raised when blueprint resolution returns no result. This error contains
+    all exceptions that ocurred while resolving.
+    """
+
     def __init__(
         self, type_: type, traces: Traces, errors: Iterable[ResolverError]
     ) -> None:
@@ -73,6 +89,14 @@ class ResolutionFailureError(TypeConstructionResolutionError):
         self.errors = errors
 
     def contains(self, exc_type: type[ResolverError]) -> bool:
+        """Checks if any exception raised was of a specific type.
+
+        Args:
+            exc_type (type[ResolverError]): The exc type to find.
+
+        Returns:
+            bool: True if an exception of type exc_type exists; otherwise False.
+        """
         for error in self.errors:
             if isinstance(error, exc_type):
                 return True
@@ -80,12 +104,18 @@ class ResolutionFailureError(TypeConstructionResolutionError):
 
 
 class TracedTypeConstructionResolutionError(TypeConstructionResolutionError):
+    """Raised when an error ocurred in a blueprint resolution containing the
+    tracing of resolution.
+    """
+
     def __init__(self, type_: type, traces: Traces, msg: str) -> None:
         super().__init__(type_, msg)
         self.traces = traces
 
 
 class NoConstructorError(TracedTypeConstructionResolutionError):
+    """Raised when there is no available constructor for a specific type."""
+
     def __init__(self, type_: type, traces: Traces) -> None:
         super().__init__(
             type_, traces, f"Unable to find constructor for {type_!r}"
@@ -93,6 +123,8 @@ class NoConstructorError(TracedTypeConstructionResolutionError):
 
 
 class CyclicDependencyError(TracedTypeConstructionResolutionError):
+    """Raised when a cyclic dependency occurred in the dependency graph."""
+
     def __init__(self, type_: type, traces: Traces) -> None:
         super().__init__(
             type_, traces, f"Cyclic dependency found for {type_!r}"
@@ -100,30 +132,42 @@ class CyclicDependencyError(TracedTypeConstructionResolutionError):
 
 
 class ContainerError(Exception):
+    """Base classes for all container related errors."""
+
     pass
 
 
-class InstanceNotFoundError(ContainerError):
+class InstanceRetrievalError(ContainerError):
+    """Raised for instance retrieval errors."""
+
+    pass
+
+
+class InstanceNotFoundError(InstanceRetrievalError):
+    """Raised when an instance is not found."""
+
     pass
 
 
 class InstanceOfTypeNotFoundError(InstanceNotFoundError):
+    """Raised when an instance of a specific type is not found."""
+
     def __init__(self, to_find: Any):
         self.to_find = to_find
         super().__init__(f"Instance of type {to_find} not found")
 
 
 class InstanceOfNameNotFoundError(InstanceNotFoundError):
+    """Raised when an instance with a specific name is not found."""
+
     def __init__(self, to_find: Any):
         self.to_find = to_find
         super().__init__(f"Instance of name {to_find!r} not found")
 
 
-class InstanceRetrievalError(ContainerError):
-    pass
-
-
 class AmbiguousInstanceError(InstanceRetrievalError):
+    """Raised when instances to retrieve are ambiguous."""
+
     def __init__(self, to_find: Any, candidates: Sequence[Any]):
         self.to_find = to_find
         self.candidates = candidates
@@ -133,10 +177,14 @@ class AmbiguousInstanceError(InstanceRetrievalError):
 
 
 class InstanceAdditionError(ContainerError):
+    """Raised for instances collation errors."""
+
     pass
 
 
 class ConflictingInstanceNameError(InstanceAdditionError):
+    """Raised when trying to collate multiple instances with the exact name."""
+
     def __init__(self, name: str, to_add: Any, existing: Any):
         self.name = name
         self.to_add = to_add
@@ -147,6 +195,8 @@ class ConflictingInstanceNameError(InstanceAdditionError):
 
 
 class MultiplePrimaryInstanceError(InstanceAdditionError):
+    """Raised when trying to collate multiple primary instances."""
+
     def __init__(self, to_add: Any, existing: Any):
         self.to_add = to_add
         self.existing = existing
@@ -156,15 +206,14 @@ class MultiplePrimaryInstanceError(InstanceAdditionError):
 
 
 class RegistryError(Exception):
+    """Base class for all registry related errors."""
+
     pass
 
 
-class UnsupportedTypeError(RegistryError):
-    def __init__(self, type_: type) -> None:
-        super().__init__(f"Type of {type_} is unsupported")
-
-
 class DuplicatedEntryError(RegistryError):
+    """Raised when duplicate entry are collated together."""
+
     def __init__(self, to_add: Any, existing: Any) -> None:
         self.to_add = to_add
         self.existing = existing
@@ -174,20 +223,30 @@ class DuplicatedEntryError(RegistryError):
 
 
 class InvalidTypeAnnotation(TypeError):
+    """Raised for invalid type annotation."""
+
     pass
 
 
 class MissingReturnTypeAnnotation(InvalidTypeAnnotation):
+    """Raised when type annotation for a return value is missing."""
+
     pass
 
 
 class MissingParameterTypeAnnotation(InvalidTypeAnnotation):
+    """Raised when type annotation for a parameter is missing."""
+
     pass
 
 
 class BuilderError(Exception):
+    """Base class for all Builder related errors."""
+
     pass
 
 
 class AsyncBlueprintError(Exception):
+    """Raised when trying to create an async blueprint using sync Builder."""
+
     pass
