@@ -1,6 +1,7 @@
 import itertools
 from typing import (  # type: ignore[attr-defined]
     Annotated,
+    Any,
     ForwardRef,
     Generic,
     Protocol,
@@ -12,6 +13,25 @@ from typing import (  # type: ignore[attr-defined]
     get_args,
     get_origin,
 )
+
+from composify.errors import InvalidTypeAnnotation
+
+
+def ensure_type_annotation(
+    *,
+    type_annotation: Any,
+    name: str,
+    raise_type: type[InvalidTypeAnnotation],
+) -> type:
+    if type_annotation is None:
+        raise raise_type(f"{name} is missing a type annotation.")
+    if not isinstance(type_annotation, type):
+        origin = get_origin(type_annotation)
+        if origin is not Annotated:
+            raise raise_type(
+                f"The annotation for {name} must be a type, got {type_annotation} of type {type(type_annotation)}."
+            )
+    return type_annotation
 
 
 def _expand_union_args_combinations(type_):
@@ -82,3 +102,7 @@ def get_type(type_: AnnotatedType) -> type:
     if origin is Annotated:
         type_ = get_args(type_)[0]
     return type_
+
+
+def resolve_type_name(value: Any):
+    return f"{value.__module__}.{value.__qualname__}".replace(".<locals>", "")

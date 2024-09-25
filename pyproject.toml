@@ -11,7 +11,6 @@ maintainers = [
 ]
 description = "Library to help compose python apps declaratively."
 dependencies = [
-    "exceptiongroup>=1.2.2",
     "typing-extensions>=4.12.2",
 ]
 license = {text = "MIT"}

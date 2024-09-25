@@ -5,8 +5,6 @@ from typing_extensions import Self
 
 from composify.types import AnnotatedType
 
-SLOTS = {"slots": True}
-
 
 class BaseMetadata:
     __slots__ = ()

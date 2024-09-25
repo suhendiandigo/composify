@@ -3,6 +3,7 @@ from typing import Annotated, Generic, TypeVar
 
 from pytest import raises
 
+from composify.attributes import Name
 from composify.container import Container
 from composify.errors import (
     AmbiguousInstanceError,
@@ -11,7 +12,6 @@ from composify.errors import (
     InvalidTypeAnnotation,
     MultiplePrimaryInstanceError,
 )
-from composify.metadata import Name
 
 
 @dataclass(frozen=True)

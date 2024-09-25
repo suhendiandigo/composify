@@ -11,25 +11,28 @@ from typing import (
     ParamSpec,
     TypeAlias,
     TypeVar,
-    get_origin,
     get_type_hints,
 )
 
 from composify.errors import (
-    InvalidTypeAnnotation,
     MissingParameterTypeAnnotation,
     MissingReturnTypeAnnotation,
 )
-from composify.metadata import BaseAttributeMetadata, collect_attributes
-from composify.metadata.attributes import AttributeSet
+from composify.metadata import AttributeSet, collect_attributes
+from composify.metadata.qualifiers import BaseQualifierMetadata
 from composify.registry import (
+    EntriesCollator,
     EntriesFilterer,
-    EntriesValidator,
     Entry,
     Key,
     TypedRegistry,
 )
-from composify.types import AnnotatedType, get_type
+from composify.types import (
+    AnnotatedType,
+    ensure_type_annotation,
+    get_type,
+    resolve_type_name,
+)
 
 __all__ = ["rule", "as_rule"]
 
@@ -39,13 +42,15 @@ P = ParamSpec("P")
 
 SyncRuleFunctionType: TypeAlias = Callable[P, T]
 AsyncRuleFunctionType: TypeAlias = Callable[P, Awaitable[T]]
-RuleFunctionType: TypeAlias = SyncRuleFunctionType | AsyncRuleFunctionType
+RuleFunctionType: TypeAlias = (
+    SyncRuleFunctionType | AsyncRuleFunctionType | type
+)
 
 F = TypeVar("F", bound=RuleFunctionType)
 
 RULE_ATTR = "__rule__"
 
-ParameterType: TypeAlias = tuple[str, type]
+ParameterType: TypeAlias = tuple[str, AnnotatedType]
 ParameterTypes: TypeAlias = tuple[ParameterType, ...]
 
 
@@ -55,8 +60,9 @@ class ConstructRule(Entry, Generic[T]):
     is_async: bool
     canonical_name: str
     output_type: type[T]
-    attributes: AttributeSet
     parameter_types: ParameterTypes
+    attributes: AttributeSet
+    priority: int
 
     @property
     def key(self) -> Key:
@@ -67,92 +73,90 @@ class ConstructRule(Entry, Generic[T]):
         return self.canonical_name
 
 
-def _make_rule(
-    func: RuleFunctionType,
-    *,
-    is_async: bool,
-    canonical_name: str,
-    output_type: type,
-    output_attributes: Iterable[BaseAttributeMetadata],
-    parameter_types: ParameterTypes,
-) -> ConstructRule:
-    return ConstructRule(
-        func,
-        is_async=is_async,
-        canonical_name=canonical_name,
-        output_type=output_type,
-        attributes=AttributeSet(output_attributes),
-        parameter_types=parameter_types,
-    )
-
-
-def _ensure_type_annotation(
-    *,
-    type_annotation: type | None,
-    name: str,
-    raise_type: type[InvalidTypeAnnotation],
-) -> type:
-    if type_annotation is None:
-        raise raise_type(f"{name} is missing a type annotation.")
-    if not isinstance(type_annotation, type):
-        origin = get_origin(type_annotation)
-        if origin is not Annotated:
-            raise raise_type(
-                f"The annotation for {name} must be a type, got {type_annotation} of type {type(type_annotation)}."
-            )
-    return type_annotation
+def _add_qualifiers(
+    type_: AnnotatedType[T], qualifiers: Iterable[BaseQualifierMetadata] | None
+) -> AnnotatedType[T]:
+    if qualifiers is not None:
+        for qualifier in qualifiers:
+            type_ = Annotated[type_, qualifier]
+    return type_
 
 
 def rule_decorator(
-    func: F,
-) -> F | ConstructRule:
-    func_params = inspect.signature(func).parameters
+    decorated: F,
+    *,
+    priority: int,
+    dependency_qualifiers: Iterable[BaseQualifierMetadata] | None = None,
+) -> F:
+    if inspect.isclass(decorated):
+        func = decorated.__init__
+        func_params = list(inspect.signature(func).parameters)
+        del func_params[0]
+    else:
+        func = decorated
+        func_params = list(inspect.signature(func).parameters)
     func_id = f"@rule {func.__module__}:{func.__name__}"
     type_hints = get_type_hints(func, include_extras=True)
-    return_type = _ensure_type_annotation(
-        type_annotation=type_hints.get("return"),
+    return_type = ensure_type_annotation(
+        type_annotation=decorated
+        if inspect.isclass(decorated)
+        else type_hints.get("return"),
         name=f"{func_id} return",
         raise_type=MissingReturnTypeAnnotation,
     )
     metadata = collect_attributes(return_type)
     return_type = get_type(return_type)
 
-    parameter_types = tuple(
+    parameter_types: tuple[tuple[str, AnnotatedType], ...] = tuple(
         (
             parameter,
-            _ensure_type_annotation(
-                type_annotation=type_hints.get(parameter),
-                name=f"{func_id} parameter {parameter}",
-                raise_type=MissingParameterTypeAnnotation,
+            _add_qualifiers(
+                ensure_type_annotation(
+                    type_annotation=type_hints.get(parameter),
+                    name=f"{func_id} parameter {parameter}",
+                    raise_type=MissingParameterTypeAnnotation,
+                ),
+                dependency_qualifiers,
             ),
         )
         for parameter in func_params
     )
-    effective_name = f"{func.__module__}.{func.__qualname__}".replace(
-        ".<locals>", ""
-    )
+    effective_name = resolve_type_name(func)
 
-    rule = _make_rule(
-        func,
+    rule: ConstructRule = ConstructRule(
+        decorated,
         is_async=asyncio.iscoroutinefunction(func),
         canonical_name=effective_name,
         output_type=return_type,
-        output_attributes=metadata,
+        attributes=metadata,
         parameter_types=parameter_types,
+        priority=priority,
     )
     setattr(
-        func,
+        decorated,
         RULE_ATTR,
         rule,
     )
-    return func
+    return decorated
 
 
 @wraps(rule_decorator)
-def rule(f: RuleFunctionType | None = None, /, **kwargs):
+def rule(
+    f: RuleFunctionType | None = None,
+    /,
+    *,
+    priority: int = 0,
+    dependency_qualifiers: Iterable[BaseQualifierMetadata] | None = None,
+):
     if f is None:
-        return partial(rule_decorator, **kwargs)
-    return rule_decorator(f, **kwargs)
+        return partial(
+            rule_decorator,
+            priority=priority,
+            dependency_qualifiers=dependency_qualifiers,
+        )
+    return rule_decorator(
+        f, priority=priority, dependency_qualifiers=dependency_qualifiers
+    )
 
 
 def as_rule(f: Any) -> ConstructRule | None:
@@ -225,12 +229,12 @@ class RuleRegistry:
         rules: Iterable[ConstructRule] | None = None,
         *,
         attribute_filterer: EntriesFilterer | None = None,
-        unique_validator: EntriesValidator | None = None,
+        entries_collator: EntriesCollator | None = None,
     ) -> None:
         self._rules = TypedRegistry(
             rules,
             entries_filterer=attribute_filterer,
-            unique_validator=unique_validator,
+            entries_collator=entries_collator,
         )
 
     def _compare_entries(

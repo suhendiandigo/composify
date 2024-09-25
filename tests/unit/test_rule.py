@@ -2,6 +2,8 @@ from dataclasses import dataclass
 
 import pytest
 
+from composify._qualifiers import DisallowSubclass
+from composify.metadata.qualifiers import collect_qualifiers
 from composify.rules import as_rule, collect_rules, rule
 
 
@@ -57,3 +59,22 @@ def test_rule_sync_invocation():
 async def test_rule_async_invocation():
     val = "Test Value"
     assert await example_async_rule(Param(val)) == Result(val)
+
+
+def test_class_rule():
+    @rule
+    class Rule:
+        def __init__(self, param: Param) -> None:
+            self.value = param.value
+
+    assert as_rule(Rule) is not None
+
+
+def test_dependency_qualifiers():
+    @rule(dependency_qualifiers=(DisallowSubclass(),))
+    def test_rule(param: Param) -> Result:
+        return Result(param.value)
+
+    _rule = as_rule(test_rule)
+    qualifiers = collect_qualifiers(_rule.parameter_types[0][1])
+    assert DisallowSubclass() in qualifiers

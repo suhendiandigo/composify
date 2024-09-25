@@ -1,8 +1,17 @@
+from collections.abc import Iterable, Sequence
 from typing import Any, TypeAlias
 
 
 class ResolverError(Exception):
     pass
+
+
+class InvalidResolutionModeError(ResolverError):
+    def __init__(self, mode: str) -> None:
+        self.mode = mode
+        super().__init__(
+            f"Invalid resolution mode {mode!r}",
+        )
 
 
 class MultipleResolutionError(ResolverError):
@@ -34,6 +43,40 @@ class TypeConstructionResolutionError(ResolverError):
 
 Trace: TypeAlias = tuple[str, str, type]
 Traces: TypeAlias = tuple[Trace, ...]
+
+
+def _format_trace(trace: Trace) -> str:
+    return (
+        f"({trace[1]}: {trace[0]} -> {trace[2].__module__}.{trace[2].__name__})"
+    )
+
+
+def _format_traces(traces: Traces) -> str:
+    return "->".join(_format_trace(trace) for trace in traces)
+
+
+class ResolutionFailureError(TypeConstructionResolutionError):
+    def __init__(
+        self, type_: type, traces: Traces, errors: Iterable[ResolverError]
+    ) -> None:
+        error_strings = tuple(
+            f"- {_format_traces(error.traces)}: {error}"
+            if isinstance(error, TracedTypeConstructionResolutionError)
+            else f"- {error}"
+            for error in errors
+        )
+        error_string = "\n".join(error_strings)
+        super().__init__(
+            type_, f"Failed to resolve for type {type_}\n{error_string}"
+        )
+        self.traces = traces
+        self.errors = errors
+
+    def contains(self, exc_type: type[ResolverError]) -> bool:
+        for error in self.errors:
+            if isinstance(error, exc_type):
+                return True
+        return False
 
 
 class TracedTypeConstructionResolutionError(TypeConstructionResolutionError):
@@ -81,7 +124,7 @@ class InstanceRetrievalError(ContainerError):
 
 
 class AmbiguousInstanceError(InstanceRetrievalError):
-    def __init__(self, to_find: Any, candidates: tuple[Any, ...]):
+    def __init__(self, to_find: Any, candidates: Sequence[Any]):
         self.to_find = to_find
         self.candidates = candidates
         super().__init__(

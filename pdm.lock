@@ -5,7 +5,7 @@
 groups = ["default", "linting", "testing"]
 strategy = ["inherit_metadata"]
 lock_version = "4.5.0"
-content_hash = "sha256:60828505001cfd5694d25e3570914ac0298568ae4665ca4238f5271554d15349"
+content_hash = "sha256:390d7197e236bc2b754882d336a43fbd3dad355d08bb7c653c0ed7d0253ded4e"
 
 [[metadata.targets]]
 requires_python = ">=3.10"
@@ -154,7 +154,8 @@ name = "exceptiongroup"
 version = "1.2.2"
 requires_python = ">=3.7"
 summary = "Backport of PEP 654 (exception groups)"
-groups = ["default", "testing"]
+groups = ["testing"]
+marker = "python_version < \"3.11\""
 files = [
     {file = "exceptiongroup-1.2.2-py3-none-any.whl", hash = "sha256:3111b9d131c238bec2f8f516e123e14ba243563fb135d3fe885990585aa7795b"},
     {file = "exceptiongroup-1.2.2.tar.gz", hash = "sha256:47c2edf7c6738fafb49fd34290706d1a1a2f4d1c6df275526b62cbb4aa5393cc"},
