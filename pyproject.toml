@@ -15,6 +15,11 @@ dependencies = [
 ]
 license = {text = "MIT"}
 
+[project.optional-dependencies]
+fastapi = [
+    "fastapi>=0.94.0",
+]
+
 [build-system]
 requires = ["pdm-backend"]
 build-backend = "pdm.backend"
