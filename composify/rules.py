@@ -4,13 +4,22 @@ from collections.abc import Awaitable, Callable, Iterable, Mapping
 from dataclasses import dataclass
 from functools import partial, wraps
 from types import FrameType, ModuleType
-from typing import Any, Generic, ParamSpec, TypeAlias, TypeVar, get_type_hints
+from typing import (
+    Annotated,
+    Any,
+    Generic,
+    ParamSpec,
+    TypeAlias,
+    TypeVar,
+    get_type_hints,
+)
 
 from composify.errors import (
     MissingParameterTypeAnnotation,
     MissingReturnTypeAnnotation,
 )
 from composify.metadata import AttributeSet, collect_attributes
+from composify.metadata.qualifiers import BaseQualifierMetadata
 from composify.registry import (
     EntriesCollator,
     EntriesFilterer,
@@ -41,7 +50,7 @@ F = TypeVar("F", bound=RuleFunctionType)
 
 RULE_ATTR = "__rule__"
 
-ParameterType: TypeAlias = tuple[str, type]
+ParameterType: TypeAlias = tuple[str, AnnotatedType]
 ParameterTypes: TypeAlias = tuple[ParameterType, ...]
 
 
@@ -64,10 +73,20 @@ class ConstructRule(Entry, Generic[T]):
         return self.canonical_name
 
 
+def _add_qualifiers(
+    type_: AnnotatedType[T], qualifiers: Iterable[BaseQualifierMetadata] | None
+) -> AnnotatedType[T]:
+    if qualifiers is not None:
+        for qualifier in qualifiers:
+            type_ = Annotated[type_, qualifier]
+    return type_
+
+
 def rule_decorator(
     decorated: F,
     *,
     priority: int,
+    dependency_qualifiers: Iterable[BaseQualifierMetadata] | None = None,
 ) -> F:
     if inspect.isclass(decorated):
         func = decorated.__init__
@@ -91,10 +110,13 @@ def rule_decorator(
     parameter_types = tuple(
         (
             parameter,
-            ensure_type_annotation(
-                type_annotation=type_hints.get(parameter),
-                name=f"{func_id} parameter {parameter}",
-                raise_type=MissingParameterTypeAnnotation,
+            _add_qualifiers(
+                ensure_type_annotation(
+                    type_annotation=type_hints.get(parameter),
+                    name=f"{func_id} parameter {parameter}",
+                    raise_type=MissingParameterTypeAnnotation,
+                ),
+                dependency_qualifiers,
             ),
         )
         for parameter in func_params
@@ -124,10 +146,17 @@ def rule(
     /,
     *,
     priority: int = 0,
+    dependency_qualifiers: Iterable[BaseQualifierMetadata] | None = None,
 ):
     if f is None:
-        return partial(rule_decorator, priority=priority)
-    return rule_decorator(f, priority=priority)
+        return partial(
+            rule_decorator,
+            priority=priority,
+            dependency_qualifiers=dependency_qualifiers,
+        )
+    return rule_decorator(
+        f, priority=priority, dependency_qualifiers=dependency_qualifiers
+    )
 
 
 def as_rule(f: Any) -> ConstructRule | None:
