@@ -1,10 +1,11 @@
 from collections.abc import Iterable, Sequence
 from dataclasses import dataclass, field
-from typing import Generic, TypeAlias, TypeVar
+from typing import Generic, Literal, TypeAlias, TypeVar
 
 from composify.constructor import Constructor, ConstructorFunction
 from composify.errors import (
     CyclicDependencyError,
+    InvalidResolutionModeError,
     NoConstructorError,
     ResolutionFailureError,
     ResolverError,
@@ -72,6 +73,12 @@ class Tracing:
         return Tracing(traces=(*self.traces, trace))
 
 
+ResolutionMode: TypeAlias = Literal["exhaustive", "select_first"]
+SELECT_FIRST: ResolutionMode = "select_first"
+EXHAUSTIVE: ResolutionMode = "exhaustive"
+DEFAULT_RESOLUTION_MODE: ResolutionMode = EXHAUSTIVE
+
+
 class BlueprintResolver:
     """The main responsibility of this class is to generate all possible
     blueprints from supplied factories.
@@ -117,11 +124,19 @@ class BlueprintResolver:
             yield from provider.provide_for_type(target)
 
     def _create_plans(
-        self, target: AnnotatedType[T]
+        self, target: AnnotatedType[T], mode: ResolutionMode
     ) -> tuple[Constructor, ...]:
         result = self._memo.get(target, None)
         if result is None:
-            result = self._memo[target] = tuple(self._raw_create_plans(target))
+            match mode:
+                case "exhaustive":
+                    result = tuple(self._raw_create_plans(target))
+                case "select_first":
+                    result = (next(iter(self._raw_create_plans(target))),)
+                case _:
+                    raise InvalidResolutionModeError(mode)
+
+            self._memo[target] = result
         return result
 
     def _resolve_plan(
@@ -130,6 +145,7 @@ class BlueprintResolver:
         name: str,
         plan: Constructor[T],
         plan_order: int,
+        mode: ResolutionMode,
         trace: Tracing,
     ) -> Iterable[Blueprint[T]]:
         curr_trace = plan.source, name, target
@@ -143,7 +159,12 @@ class BlueprintResolver:
                     (
                         dependency_name,
                         tuple(
-                            self._resolve(dependency, dependency_name, tracing)
+                            self._resolve(
+                                target=dependency,
+                                name=dependency_name,
+                                mode=mode,
+                                trace=tracing,
+                            )
                         ),
                     )
                 )
@@ -180,9 +201,9 @@ class BlueprintResolver:
             )
 
     def _resolve(
-        self, target: type[T], name: str, trace: Tracing
+        self, target: type[T], name: str, mode: ResolutionMode, trace: Tracing
     ) -> Iterable[Blueprint[T]]:
-        plans = self._create_plans(target)
+        plans = self._create_plans(target, mode)
         if not plans:
             raise NoConstructorError(target, trace.traces)
         errors: list[ResolverError] = []
@@ -190,7 +211,14 @@ class BlueprintResolver:
         for plan_order, plan in enumerate(plans):
             try:
                 constructions.extend(
-                    self._resolve_plan(target, name, plan, plan_order, trace)
+                    self._resolve_plan(
+                        target=target,
+                        name=name,
+                        plan=plan,
+                        plan_order=plan_order,
+                        mode=mode,
+                        trace=trace,
+                    )
                 )
             except (NoConstructorError, CyclicDependencyError) as exc:
                 errors.append(exc)
@@ -200,11 +228,17 @@ class BlueprintResolver:
             raise ResolutionFailureError(target, trace.traces, errors)
         yield from constructions
 
-    def resolve(self, target: type[T]) -> Iterable[Blueprint[T]]:
+    def resolve(
+        self, target: type[T], mode: ResolutionMode = DEFAULT_RESOLUTION_MODE
+    ) -> Iterable[Blueprint[T]]:
+        if mode not in (EXHAUSTIVE, SELECT_FIRST):
+            raise InvalidResolutionModeError(mode)
         tracing = Tracing(())
         try:
             return sorted(
-                self._resolve(target, "__root__", tracing),
+                self._resolve(
+                    target=target, name="__root__", mode=mode, trace=tracing
+                ),
                 key=lambda x: x.priority,
             )
         except (NoConstructorError, CyclicDependencyError) as exc:

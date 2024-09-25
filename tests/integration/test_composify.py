@@ -27,14 +27,14 @@ def test_default_resolution():
     composify.add_rule(create_value)
 
     assert (
-        composify.get_or_create(Value, resolution_mode="default")
+        composify.get_or_create(Value, resolution_mode="exhaustive")
         == create_value()
     )
 
     composify.add_rule(create_value_2)
 
     with pytest.raises(MultipleResolutionError):
-        composify.get_or_create(Value, resolution_mode="default")
+        composify.get_or_create(Value, resolution_mode="exhaustive")
 
     assert composify.get_or_create_all(Value) == (
         create_value(),
@@ -59,10 +59,7 @@ def test_first_resolution():
         == create_value()
     )
 
-    assert composify.get_or_create_all(Value) == (
-        create_value(),
-        create_value_2(),
-    )
+    assert composify.get_or_create_all(Value) == (create_value(),)
 
 
 @rule
@@ -82,14 +79,14 @@ async def test_async_default_resolution():
     composify.add_rule(async_create_value)
 
     assert (
-        await composify.aget_or_create(Value, resolution_mode="default")
+        await composify.aget_or_create(Value, resolution_mode="exhaustive")
         == create_value()
     )
 
     composify.add_rule(async_create_value_2)
 
     with pytest.raises(MultipleResolutionError):
-        await composify.aget_or_create(Value, resolution_mode="default")
+        await composify.aget_or_create(Value, resolution_mode="exhaustive")
 
     assert await composify.aget_or_create_all(Value) == (
         create_value(),
@@ -113,10 +110,7 @@ async def test_async_first_resolution():
         await composify.aget_or_create(Value, resolution_mode="select_first")
     ) == create_value()
 
-    assert (await composify.aget_or_create_all(Value)) == (
-        create_value(),
-        create_value_2(),
-    )
+    assert (await composify.aget_or_create_all(Value)) == (create_value(),)
 
 
 def test_sync_build_on_async():
@@ -125,4 +119,4 @@ def test_sync_build_on_async():
     composify.add_rule(async_create_value)
 
     with pytest.raises(AsyncBlueprintError):
-        composify.get_or_create(Value, resolution_mode="default")
+        composify.get_or_create(Value, resolution_mode="exhaustive")

@@ -6,6 +6,14 @@ class ResolverError(Exception):
     pass
 
 
+class InvalidResolutionModeError(ResolverError):
+    def __init__(self, mode: str) -> None:
+        self.mode = mode
+        super().__init__(
+            f"Invalid resolution mode {mode!r}",
+        )
+
+
 class MultipleResolutionError(ResolverError):
     def __init__(self, type_: type, resolutions: Any) -> None:
         self.type_ = type_

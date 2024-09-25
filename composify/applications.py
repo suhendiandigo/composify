@@ -3,7 +3,7 @@ import itertools
 from collections.abc import Awaitable, Callable, Iterable, Sequence
 from typing import TypeVar
 
-from composify.blueprint import BlueprintResolver
+from composify.blueprint import DEFAULT_RESOLUTION_MODE, BlueprintResolver
 from composify.builder import AsyncBuilder, Builder
 from composify.container import Container, ContainerGetter
 from composify.errors import NoConstructorError, ResolutionFailureError
@@ -11,7 +11,7 @@ from composify.get_or_create import (
     AsyncGetOrCreate,
     GetOrCreate,
     ResolutionMode,
-    blueprint_selector,
+    select_blueprint,
 )
 from composify.injector import Injector
 from composify.provider import (
@@ -56,15 +56,19 @@ class ComposifyGetOrCreate(GetOrCreate):
     def one(
         self,
         type_: AnnotatedType[T],
-        resolution_mode: ResolutionMode = "default",
+        resolution_mode: ResolutionMode = DEFAULT_RESOLUTION_MODE,
     ) -> T:
-        plans = tuple(self._resolver.resolve(type_))
-        plan = blueprint_selector(resolution_mode)(type_, plans)
+        plans = tuple(self._resolver.resolve(type_, resolution_mode))
+        plan = select_blueprint(type_, plans)
         return self._builder.from_blueprint(plan)
 
-    def all(self, type_: AnnotatedType[T]) -> Sequence[T]:
+    def all(
+        self,
+        type_: AnnotatedType[T],
+        resolution_mode: ResolutionMode = DEFAULT_RESOLUTION_MODE,
+    ) -> Sequence[T]:
         try:
-            plans = tuple(self._resolver.resolve(type_))
+            plans = tuple(self._resolver.resolve(type_, resolution_mode))
         except ResolutionFailureError as exc:
             new_exc = _skip_no_constructor_error(exc)
             if new_exc:
@@ -84,15 +88,19 @@ class ComposifyAsyncGetOrCreate(AsyncGetOrCreate):
     async def one(
         self,
         type_: AnnotatedType[T],
-        resolution_mode: ResolutionMode = "default",
+        resolution_mode: ResolutionMode = DEFAULT_RESOLUTION_MODE,
     ) -> T:
-        plans = tuple(self._resolver.resolve(type_))
-        plan = blueprint_selector(resolution_mode)(type_, plans)
+        plans = tuple(self._resolver.resolve(type_, resolution_mode))
+        plan = select_blueprint(type_, plans)
         return await self._builder.from_blueprint(plan)
 
-    async def all(self, type_: AnnotatedType[T]) -> Sequence[T]:
+    async def all(
+        self,
+        type_: AnnotatedType[T],
+        resolution_mode: ResolutionMode = DEFAULT_RESOLUTION_MODE,
+    ) -> Sequence[T]:
         try:
-            plans = tuple(self._resolver.resolve(type_))
+            plans = tuple(self._resolver.resolve(type_, resolution_mode))
         except ResolutionFailureError as exc:
             new_exc = _skip_no_constructor_error(exc)
             if new_exc:
@@ -177,21 +185,27 @@ class Composify:
     def aget_or_create(
         self,
         type_: AnnotatedType[T],
-        resolution_mode: ResolutionMode = "default",
+        resolution_mode: ResolutionMode = DEFAULT_RESOLUTION_MODE,
     ) -> Awaitable[T]:
         return self._async_get_or_create.one(type_, resolution_mode)
 
     def aget_or_create_all(
-        self, type_: AnnotatedType[T]
+        self,
+        type_: AnnotatedType[T],
+        resolution_mode: ResolutionMode = DEFAULT_RESOLUTION_MODE,
     ) -> Awaitable[Sequence[T]]:
-        return self._async_get_or_create.all(type_)
+        return self._async_get_or_create.all(type_, resolution_mode)
 
     def get_or_create(
         self,
         type_: AnnotatedType[T],
-        resolution_mode: ResolutionMode = "default",
+        resolution_mode: ResolutionMode = DEFAULT_RESOLUTION_MODE,
     ) -> T:
         return self._get_or_create.one(type_, resolution_mode)
 
-    def get_or_create_all(self, type_: AnnotatedType[T]) -> Sequence[T]:
-        return self._get_or_create.all(type_)
+    def get_or_create_all(
+        self,
+        type_: AnnotatedType[T],
+        resolution_mode: ResolutionMode = DEFAULT_RESOLUTION_MODE,
+    ) -> Sequence[T]:
+        return self._get_or_create.all(type_, resolution_mode)
