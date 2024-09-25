@@ -1,6 +1,6 @@
-from collections.abc import Iterable
+from collections.abc import Iterable, Sequence
 from dataclasses import dataclass, field
-from typing import Annotated, Generic, TypeAlias, TypeVar
+from typing import Generic, TypeAlias, TypeVar
 
 from composify.constructor import Constructor, ConstructorFunction
 from composify.errors import (
@@ -9,7 +9,6 @@ from composify.errors import (
     ResolutionFailureError,
     ResolverError,
 )
-from composify.metadata.attributes import ProvidedBy
 from composify.provider import ConstructorProvider
 from composify.types import AnnotatedType
 
@@ -35,7 +34,7 @@ class Blueprint(Generic[T]):
 
 
 _Parameter: TypeAlias = tuple[str, Blueprint]
-_Parameters: TypeAlias = frozenset[_Parameter]
+_Parameters: TypeAlias = Sequence[_Parameter]
 
 
 def _permutate_parameters(
@@ -44,7 +43,7 @@ def _permutate_parameters(
     rest_of_parameters: tuple[tuple[str, tuple[Blueprint, ...]], ...],
 ):
     if not rest_of_parameters:
-        yield frozenset(parameters), level
+        yield parameters, level
     else:
         name, values = rest_of_parameters[0]
         rest_of_parameters = rest_of_parameters[1:]
@@ -165,10 +164,8 @@ class BlueprintResolver:
                             ),
                         )
                     ),
-                    output_type=Annotated[
-                        plan.output_type, ProvidedBy(plan.source)
-                    ],
-                    dependencies=parameter_permutation,
+                    output_type=plan.output_type,
+                    dependencies=frozenset(parameter_permutation),
                     priority=(level, plan_order, i),
                 )
                 i += 1
@@ -177,9 +174,7 @@ class BlueprintResolver:
                 source=plan.source,
                 constructor=plan.constructor,
                 is_async=plan.is_async,
-                output_type=Annotated[
-                    plan.output_type, ProvidedBy(plan.source)
-                ],
+                output_type=plan.output_type,
                 dependencies=frozenset(),
                 priority=(0, plan_order),
             )

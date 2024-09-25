@@ -1,7 +1,7 @@
 from abc import ABC, abstractmethod
 from asyncio import Protocol
 from bisect import insort
-from collections.abc import Iterable
+from collections.abc import Iterable, Sequence
 from dataclasses import dataclass
 from typing import Generic, TypeAlias, TypeVar
 
@@ -82,10 +82,6 @@ class EntriesCollator(Protocol, Generic[E]):
 
     def collate_entries(self, entry: E, entries: list[E]) -> None:
         raise NotImplementedError()
-
-
-def _entry_ordering(entry: Entry):
-    return entry.order
 
 
 class DefaultEntriesCollator(EntriesCollator[E]):
@@ -173,7 +169,7 @@ class TypedRegistry(Generic[E]):
 
         return entries
 
-    def get(self, key: Key) -> tuple[E, ...]:
+    def get(self, key: Key) -> Sequence[E]:
         entries: Iterable[E] = self._get_entries(key)
         if not entries:
             return _EMPTY_RESULT

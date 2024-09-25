@@ -1,6 +1,7 @@
 import asyncio
 import inspect
 from collections.abc import Callable, Coroutine
+from functools import wraps
 from typing import Any, TypeVar, get_type_hints
 
 from composify.errors import MissingParameterTypeAnnotation
@@ -17,17 +18,20 @@ class Injector:
     def __call__(
         self,
         function: Callable[..., A],
-        kwargs: dict[str, Any],
-        exclude: set[str],
+        params: dict[str, Any] | None = None,
+        exclude: set[str] | None = None,
     ) -> Callable[[], A]:
         func_id = f"{function.__module__}:{function.__name__}"
         func_params = inspect.signature(function).parameters
         type_hints = get_type_hints(function, include_extras=True)
+        to_exclude = exclude or set()
+        if params:
+            to_exclude.union(params)
 
         parameters_to_inject = tuple(
             parameter
             for parameter in func_params
-            if parameter not in kwargs and parameter not in exclude
+            if parameter not in to_exclude
         )
 
         parameter_types = tuple(
@@ -46,7 +50,8 @@ class Injector:
 
         if asyncio.iscoroutinefunction(function):
 
-            async def wrapper():
+            @wraps(function)
+            async def wrapper(*args, **kwargs):
                 names, coroutines = zip(
                     *(
                         (name, self._getter.aget(type_annotation))
@@ -54,23 +59,30 @@ class Injector:
                     ),
                     strict=True,
                 )
-                return function(
-                    **dict(
-                        zip(
-                            names,
-                            await asyncio.gather(*coroutines),
-                            strict=True,
-                        )
-                    ),
-                    **kwargs,
+                parameters = dict(
+                    zip(
+                        names,
+                        await asyncio.gather(*coroutines),
+                        strict=True,
+                    )
                 )
+                if params:
+                    parameters.update(params)
+                if kwargs:
+                    parameters.update(kwargs)
+                return function(*args, **parameters)
         else:
 
-            def wrapper():
+            @wraps(function)
+            def wrapper(*args, **kwargs):
                 parameters = {
                     name: self._getter.one(type_annotation)
                     for name, type_annotation in parameter_types
                 }
-                return function(**parameters, **kwargs)
+                if params:
+                    parameters.update(params)
+                if kwargs:
+                    parameters.update(kwargs)
+                return function(*args, **parameters)
 
         return wrapper

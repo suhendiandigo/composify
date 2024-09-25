@@ -16,7 +16,7 @@ P = ParamSpec("P")
 SyncConstructorFunction: TypeAlias = Callable[..., T]
 AsyncConstructorFunction: TypeAlias = Callable[..., Awaitable[T]]
 ConstructorFunction: TypeAlias = (
-    SyncConstructorFunction[T] | AsyncConstructorFunction[T]
+    SyncConstructorFunction[T] | AsyncConstructorFunction[T] | type
 )
 
 

@@ -51,7 +51,7 @@ class ContainerInstanceProvider(ConstructorProvider):
         self, type_: AnnotatedType[T]
     ) -> Iterable[Constructor[T]]:
         try:
-            wrapper = self._container.get_wrapper(type_)
+            wrapper = self._container.get_wrapper(type_)  # type: ignore[var-annotated]
             if wrapper.attributes.get(ProvidedBy, None) is not None:
                 # This is to prevent container from providing instances
                 # provided by other providers.

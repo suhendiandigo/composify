@@ -65,7 +65,7 @@ def _resolve_instance_name(value: Any):
 
 class ContainerDefaultEntriesCollator(EntriesCollator[InstanceWrapper]):
     def collate_entries(
-        self, entry: InstanceWrapper, entries: Iterable[InstanceWrapper]
+        self, entry: InstanceWrapper, entries: list[InstanceWrapper]
     ) -> None:
         for other in entries:
             if entry.instance_name == other.instance_name:
@@ -74,7 +74,7 @@ class ContainerDefaultEntriesCollator(EntriesCollator[InstanceWrapper]):
                 )
             if entry.is_primary and other.is_primary:
                 raise MultiplePrimaryInstanceError(entry, other)
-        insort(entries, entry, key=Entry.ordering)
+        insort(entries, entry, key=InstanceWrapper.ordering)
 
 
 def _ensure_type(
@@ -200,7 +200,7 @@ class Container(BaseContainer):
             instance,
             instance_type=instance_type,
             instance_name=name,
-            attributes=AttributeSet(tuple(attributes) + (Name(name),)),
+            attributes=AttributeSet((*attributes, name)),
             is_primary=is_primary,
             priority=priority,
         )
@@ -246,7 +246,7 @@ class Container(BaseContainer):
 
     def get_wrapper(self, type_: AnnotatedType[E]) -> InstanceWrapper[E]:
         type_ = _ensure_type(type_=type_)
-        wrappers = tuple(self._mapping_by_type.get(type_))
+        wrappers = self._mapping_by_type.get(type_)
         if not wrappers:
             raise InstanceOfTypeNotFoundError(type_)
         if len(wrappers) == 1:
@@ -258,13 +258,14 @@ class Container(BaseContainer):
                     primary = wrapper
                 else:
                     raise MultiplePrimaryInstanceError()
-        if primary:
+        if primary is not None:
             return primary
         raise AmbiguousInstanceError(type_, wrappers)
 
     def get_all(self, type_: AnnotatedType[E]) -> Sequence[E]:
-        wrappers = self.get_all_wrapper(type_)
-        return tuple(wrapper.instance for wrapper in wrappers)
+        return tuple(  # type: ignore[var-annotated]
+            wrapper.instance for wrapper in self.get_all_wrapper(type_)
+        )
 
     def get_all_wrapper(
         self, type_: AnnotatedType[E]

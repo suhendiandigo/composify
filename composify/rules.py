@@ -34,7 +34,9 @@ P = ParamSpec("P")
 
 SyncRuleFunctionType: TypeAlias = Callable[P, T]
 AsyncRuleFunctionType: TypeAlias = Callable[P, Awaitable[T]]
-RuleFunctionType: TypeAlias = SyncRuleFunctionType | AsyncRuleFunctionType
+RuleFunctionType: TypeAlias = (
+    SyncRuleFunctionType | AsyncRuleFunctionType | type
+)
 
 F = TypeVar("F", bound=RuleFunctionType)
 
@@ -64,15 +66,23 @@ class ConstructRule(Entry, Generic[T]):
 
 
 def rule_decorator(
-    func: F,
+    decorated: F,
     *,
     priority: int,
-) -> F | ConstructRule:
-    func_params = inspect.signature(func).parameters
+) -> F:
+    if inspect.isclass(decorated):
+        func = decorated.__init__
+        func_params = list(inspect.signature(func).parameters)
+        del func_params[0]
+    else:
+        func = decorated
+        func_params = list(inspect.signature(func).parameters)
     func_id = f"@rule {func.__module__}:{func.__name__}"
     type_hints = get_type_hints(func, include_extras=True)
     return_type = ensure_type_annotation(
-        type_annotation=type_hints.get("return"),
+        type_annotation=func
+        if inspect.isclass(decorated)
+        else type_hints.get("return"),
         name=f"{func_id} return",
         raise_type=MissingReturnTypeAnnotation,
     )
@@ -92,7 +102,7 @@ def rule_decorator(
     )
     effective_name = resolve_type_name(func)
 
-    rule = ConstructRule(
+    rule: ConstructRule = ConstructRule(
         func,
         is_async=asyncio.iscoroutinefunction(func),
         canonical_name=effective_name,
@@ -102,7 +112,7 @@ def rule_decorator(
         priority=priority,
     )
     setattr(
-        func,
+        decorated,
         RULE_ATTR,
         rule,
     )

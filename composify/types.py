@@ -19,7 +19,7 @@ from composify.errors import InvalidTypeAnnotation
 
 def ensure_type_annotation(
     *,
-    type_annotation: type | None,
+    type_annotation: Any,
     name: str,
     raise_type: type[InvalidTypeAnnotation],
 ) -> type:

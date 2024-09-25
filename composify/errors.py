@@ -1,4 +1,4 @@
-from collections.abc import Iterable
+from collections.abc import Iterable, Sequence
 from typing import Any, TypeAlias
 
 
@@ -116,7 +116,7 @@ class InstanceRetrievalError(ContainerError):
 
 
 class AmbiguousInstanceError(InstanceRetrievalError):
-    def __init__(self, to_find: Any, candidates: tuple[Any, ...]):
+    def __init__(self, to_find: Any, candidates: Sequence[Any]):
         self.to_find = to_find
         self.candidates = candidates
         super().__init__(

@@ -1,11 +1,12 @@
 import asyncio
 from concurrent.futures import ThreadPoolExecutor
 from functools import partial
-from typing import Any, Protocol, TypeVar, cast
+from typing import Annotated, Any, Protocol, TypeVar, cast
 
 from composify.blueprint import Blueprint
 from composify.constructor import SyncConstructorFunction
 from composify.errors import AsyncBlueprintError
+from composify.metadata.attributes import ProvidedBy
 
 __all__ = [
     "AsyncBuilder",
@@ -14,6 +15,10 @@ __all__ = [
 
 
 T = TypeVar("T")
+
+
+def set_provider(value: Any, source: str):
+    return Annotated[type(value), ProvidedBy(source)]
 
 
 class BuilderSaveTo(Protocol):
@@ -50,7 +55,7 @@ class AsyncBuilder:
         value = await task
 
         if self._save_to is not None:
-            self._save_to[blueprint.output_type] = value
+            self._save_to[set_provider(value, blueprint.source)] = value
         return value
 
     async def _from_blueprint(self, blueprint: Blueprint[T]) -> T:
@@ -100,7 +105,7 @@ class Builder:
         self._cache[blueprint] = value
 
         if self._save_to is not None:
-            self._save_to[blueprint.output_type] = value
+            self._save_to[set_provider(value, blueprint.source)] = value
         return value
 
     def _from_blueprint(self, blueprint: Blueprint[T]) -> T:
