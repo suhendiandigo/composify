@@ -11,9 +11,10 @@ Components and their relationships are declared upfront via the `@rule` decorato
 
 - **Declarative Rules**: Define components and their dependencies through a simple python function and `@rule` declarator.
 - **Dependency Injection**: Using `Injector`, wraps a function and automatically inject its dependencies.
-- **Automated Component Creation**: Dynamically resolve dependencies and create only the required components.
+- **Automated Component Creation**: Dynamically resolve dependencies and create only the required components using `GetOrCreate`.
 - **Scalability**: Suitable for both small and large-scale applications.
-- **Extensible**: Easily integrates with other Python libraries and frameworks by creating using the `@rule` decorator.
+- **Extensible**: Easily integrates with other Python libraries and frameworks with the `@rule` decorator.
+
 
 ## Simple Example
 
@@ -46,6 +47,13 @@ composify = Composify(rules=collect_rules())
 b = composify.get_or_create(B)
 print(b)
 #> B(value=10)
+
+def custom_b(a: A) -> B:
+    return B(a * 3)
+
+b = composify.inject(custom_b)()
+print(b)
+#> B(value=15)
 ```
 
 ## License
