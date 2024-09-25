@@ -145,7 +145,8 @@ class Composify:
             [
                 ContainerInstanceProvider(self._container),
                 RuleBasedConstructorProvider(self._rules),
-            ]
+            ],
+            default_resolution=default_resolution,
         )
         self._async_builder = AsyncBuilder(save_to=self._container)
         self._builder = Builder(save_to=self._container)
