@@ -43,6 +43,7 @@ def _skip_no_constructor_error(
     )
     if errors:
         return ResolutionFailureError(exc.type_, exc.traces, errors)
+    return None
 
 
 class Composify(Getter):
