@@ -88,9 +88,11 @@ class BlueprintResolver:
     def __init__(
         self,
         providers: Iterable[ConstructorProvider],
+        default_resolution: ResolutionMode = DEFAULT_RESOLUTION_MODE,
     ) -> None:
         self._providers = tuple(providers)
         self._memo: dict[type, tuple[Constructor, ...]] = {}
+        self._default_resolution = default_resolution
 
     def clear_memo(self) -> None:
         self._memo.clear()
@@ -233,8 +235,11 @@ class BlueprintResolver:
         yield from constructions
 
     def resolve(
-        self, target: type[T], mode: ResolutionMode = DEFAULT_RESOLUTION_MODE
+        self,
+        target: type[T],
+        mode: ResolutionMode | None = None,
     ) -> Iterable[Blueprint[T]]:
+        mode = mode or self._default_resolution
         if mode not in RESOLUTION_MODES:
             raise InvalidResolutionModeError(mode)
         tracing = Tracing(())

@@ -1,11 +1,6 @@
 from dataclasses import dataclass
 
-from composify._resolutions import (
-    DEFAULT_RESOLUTION_MODE,
-    EXHAUSTIVE,
-    SELECT_FIRST,
-    ResolutionMode,
-)
+from composify._resolutions import EXHAUSTIVE, SELECT_FIRST, ResolutionMode
 from composify.metadata.qualifiers import BaseQualifierMetadata
 
 
@@ -21,7 +16,7 @@ class DisallowSubclass(BaseQualifierMetadata):
 class Resolution(BaseQualifierMetadata):
     """Allows for overriding the BlueprintResolver resolution mode."""
 
-    mode: ResolutionMode = DEFAULT_RESOLUTION_MODE
+    mode: ResolutionMode
 
 
 Exhaustive = Resolution(EXHAUSTIVE)

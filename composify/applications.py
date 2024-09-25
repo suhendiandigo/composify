@@ -48,27 +48,36 @@ def _skip_no_constructor_error(
 
 
 class ComposifyGetOrCreate(GetOrCreate):
-    def __init__(self, resolver: BlueprintResolver, builder: Builder) -> None:
-        super().__init__()
+    def __init__(
+        self,
+        resolver: BlueprintResolver,
+        builder: Builder,
+        default_resolution: ResolutionMode,
+    ) -> None:
+        super().__init__(default_resolution)
         self._resolver = resolver
         self._builder = builder
 
     def one(
         self,
         type_: AnnotatedType[T],
-        resolution_mode: ResolutionMode = DEFAULT_RESOLUTION_MODE,
+        resolution_mode: ResolutionMode | None = None,
     ) -> T:
-        plans = tuple(self._resolver.resolve(type_, resolution_mode))
+        plans = tuple(
+            self._resolver.resolve(type_, self._resolution(resolution_mode))
+        )
         plan = select_blueprint(type_, plans)
         return self._builder.from_blueprint(plan)
 
     def all(
         self,
         type_: AnnotatedType[T],
-        resolution_mode: ResolutionMode = DEFAULT_RESOLUTION_MODE,
+        resolution_mode: ResolutionMode | None = None,
     ) -> Sequence[T]:
         try:
-            plans = tuple(self._resolver.resolve(type_, resolution_mode))
+            plans = tuple(
+                self._resolver.resolve(type_, self._resolution(resolution_mode))
+            )
         except ResolutionFailureError as exc:
             new_exc = _skip_no_constructor_error(exc)
             if new_exc:
@@ -79,28 +88,35 @@ class ComposifyGetOrCreate(GetOrCreate):
 
 class ComposifyAsyncGetOrCreate(AsyncGetOrCreate):
     def __init__(
-        self, resolver: BlueprintResolver, builder: AsyncBuilder
+        self,
+        resolver: BlueprintResolver,
+        builder: AsyncBuilder,
+        default_resolution: ResolutionMode,
     ) -> None:
-        super().__init__()
+        super().__init__(default_resolution)
         self._resolver = resolver
         self._builder = builder
 
     async def one(
         self,
         type_: AnnotatedType[T],
-        resolution_mode: ResolutionMode = DEFAULT_RESOLUTION_MODE,
+        resolution_mode: ResolutionMode | None = None,
     ) -> T:
-        plans = tuple(self._resolver.resolve(type_, resolution_mode))
+        plans = tuple(
+            self._resolver.resolve(type_, self._resolution(resolution_mode))
+        )
         plan = select_blueprint(type_, plans)
         return await self._builder.from_blueprint(plan)
 
     async def all(
         self,
         type_: AnnotatedType[T],
-        resolution_mode: ResolutionMode = DEFAULT_RESOLUTION_MODE,
+        resolution_mode: ResolutionMode | None = None,
     ) -> Sequence[T]:
         try:
-            plans = tuple(self._resolver.resolve(type_, resolution_mode))
+            plans = tuple(
+                self._resolver.resolve(type_, self._resolution(resolution_mode))
+            )
         except ResolutionFailureError as exc:
             new_exc = _skip_no_constructor_error(exc)
             if new_exc:
@@ -120,7 +136,9 @@ class Composify:
         *,
         rules: Iterable[ConstructRule] | None = None,
         providers: Iterable[ConstructorProvider] | None = None,
+        default_resolution: ResolutionMode = DEFAULT_RESOLUTION_MODE,
     ) -> None:
+        self._default_resolution = default_resolution
         self._container = Container(name)
         self._rules = RuleRegistry()
         self._resolver = BlueprintResolver(
@@ -134,10 +152,10 @@ class Composify:
         self._getter = ContainerGetter(self._container)
         self._injector = Injector(self._getter)
         self._get_or_create = ComposifyGetOrCreate(
-            self._resolver, self._builder
+            self._resolver, self._builder, default_resolution
         )
         self._async_get_or_create = ComposifyAsyncGetOrCreate(
-            self._resolver, self._async_builder
+            self._resolver, self._async_builder, default_resolution
         )
 
         self._container.add(self)
@@ -159,6 +177,10 @@ class Composify:
     @property
     def inject(self) -> Injector:
         return self._injector
+
+    @property
+    def default_resolution(self) -> ResolutionMode:
+        return self._default_resolution
 
     @property
     def add(self):
@@ -185,27 +207,27 @@ class Composify:
     def aget_or_create(
         self,
         type_: AnnotatedType[T],
-        resolution_mode: ResolutionMode = DEFAULT_RESOLUTION_MODE,
+        resolution_mode: ResolutionMode | None = None,
     ) -> Awaitable[T]:
         return self._async_get_or_create.one(type_, resolution_mode)
 
     def aget_or_create_all(
         self,
         type_: AnnotatedType[T],
-        resolution_mode: ResolutionMode = DEFAULT_RESOLUTION_MODE,
+        resolution_mode: ResolutionMode | None = None,
     ) -> Awaitable[Sequence[T]]:
         return self._async_get_or_create.all(type_, resolution_mode)
 
     def get_or_create(
         self,
         type_: AnnotatedType[T],
-        resolution_mode: ResolutionMode = DEFAULT_RESOLUTION_MODE,
+        resolution_mode: ResolutionMode | None = None,
     ) -> T:
         return self._get_or_create.one(type_, resolution_mode)
 
     def get_or_create_all(
         self,
         type_: AnnotatedType[T],
-        resolution_mode: ResolutionMode = DEFAULT_RESOLUTION_MODE,
+        resolution_mode: ResolutionMode | None = None,
     ) -> Sequence[T]:
         return self._get_or_create.all(type_, resolution_mode)

@@ -107,7 +107,7 @@ def rule_decorator(
     metadata = collect_attributes(return_type)
     return_type = get_type(return_type)
 
-    parameter_types = tuple(
+    parameter_types: tuple[tuple[str, AnnotatedType], ...] = tuple(
         (
             parameter,
             _add_qualifiers(

@@ -2,11 +2,7 @@ from abc import ABC, abstractmethod
 from collections.abc import Sequence
 from typing import TypeVar
 
-from composify.blueprint import (
-    DEFAULT_RESOLUTION_MODE,
-    Blueprint,
-    ResolutionMode,
-)
+from composify.blueprint import Blueprint, ResolutionMode
 from composify.errors import MultipleResolutionError, NoResolutionError
 from composify.types import AnnotatedType
 
@@ -21,12 +17,26 @@ def select_blueprint(type_: AnnotatedType[T], plans: tuple[Blueprint[T], ...]):
     return plans[0]
 
 
-class GetOrCreate(ABC):
+class _DefaultResolution:
+    def __init__(self, default_resolution: ResolutionMode) -> None:
+        self._default_resolution = default_resolution
+
+    def _resolution(
+        self, resolution_mode: ResolutionMode | None
+    ) -> ResolutionMode:
+        return (
+            self._default_resolution
+            if resolution_mode is None
+            else resolution_mode
+        )
+
+
+class GetOrCreate(ABC, _DefaultResolution):
     @abstractmethod
     def one(
         self,
         type_: AnnotatedType[T],
-        resolution_mode: ResolutionMode = DEFAULT_RESOLUTION_MODE,
+        resolution_mode: ResolutionMode | None = None,
     ) -> T:
         raise NotImplementedError()
 
@@ -34,17 +44,17 @@ class GetOrCreate(ABC):
     def all(
         self,
         type_: AnnotatedType[T],
-        resolution_mode: ResolutionMode = DEFAULT_RESOLUTION_MODE,
+        resolution_mode: ResolutionMode | None = None,
     ) -> Sequence[T]:
         raise NotImplementedError()
 
 
-class AsyncGetOrCreate(ABC):
+class AsyncGetOrCreate(ABC, _DefaultResolution):
     @abstractmethod
     async def one(
         self,
         type_: AnnotatedType[T],
-        resolution_mode: ResolutionMode = DEFAULT_RESOLUTION_MODE,
+        resolution_mode: ResolutionMode | None = None,
     ) -> T:
         raise NotImplementedError()
 
@@ -52,6 +62,6 @@ class AsyncGetOrCreate(ABC):
     async def all(
         self,
         type_: AnnotatedType[T],
-        resolution_mode: ResolutionMode = DEFAULT_RESOLUTION_MODE,
+        resolution_mode: ResolutionMode | None = None,
     ) -> Sequence[T]:
         raise NotImplementedError()

@@ -1,6 +1,7 @@
 import asyncio
 from typing import Any
 
+from composify._resolutions import EXHAUSTIVE
 from composify.attributes import Name
 from composify.blueprint import Blueprint, BlueprintResolver
 from composify.constructor import ConstructorFunction
@@ -16,7 +17,7 @@ from composify.types import resolve_type_name
 
 
 def create_resolver(*factories: ConstructorProvider):
-    return BlueprintResolver(providers=factories)
+    return BlueprintResolver(providers=factories, default_resolution=EXHAUSTIVE)
 
 
 def create_rule_provider(*rules: ConstructRule):
