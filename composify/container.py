@@ -4,7 +4,7 @@ from collections.abc import Collection, Iterable, Sequence
 from dataclasses import dataclass, field
 from typing import Annotated, Any, Generic, TypeVar, get_origin
 
-from composify.attributes import Name
+from composify._attributes import Name
 from composify.errors import (
     AmbiguousInstanceError,
     ConflictingInstanceNameError,

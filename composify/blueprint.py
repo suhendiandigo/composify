@@ -1,7 +1,13 @@
 from collections.abc import Iterable, Sequence
 from dataclasses import dataclass, field
-from typing import Generic, Literal, TypeAlias, TypeVar
+from typing import Generic, TypeAlias, TypeVar
 
+from composify._qualifiers import Resolution
+from composify._resolutions import (
+    DEFAULT_RESOLUTION_MODE,
+    RESOLUTION_MODES,
+    ResolutionMode,
+)
 from composify.constructor import Constructor, ConstructorFunction
 from composify.errors import (
     CyclicDependencyError,
@@ -10,6 +16,7 @@ from composify.errors import (
     ResolutionFailureError,
     ResolverError,
 )
+from composify.metadata.qualifiers import collect_qualifiers
 from composify.provider import ConstructorProvider
 from composify.types import AnnotatedType
 
@@ -71,12 +78,6 @@ class Tracing:
         self, trace: tuple[ConstructorName, ConstructorResultName, type]
     ) -> "Tracing":
         return Tracing(traces=(*self.traces, trace))
-
-
-ResolutionMode: TypeAlias = Literal["exhaustive", "select_first"]
-SELECT_FIRST: ResolutionMode = "select_first"
-EXHAUSTIVE: ResolutionMode = "exhaustive"
-DEFAULT_RESOLUTION_MODE: ResolutionMode = EXHAUSTIVE
 
 
 class BlueprintResolver:
@@ -203,6 +204,9 @@ class BlueprintResolver:
     def _resolve(
         self, target: type[T], name: str, mode: ResolutionMode, trace: Tracing
     ) -> Iterable[Blueprint[T]]:
+        qualifiers = collect_qualifiers(target)
+        if resolution := qualifiers.get(Resolution):
+            mode = resolution.mode
         plans = self._create_plans(target, mode)
         if not plans:
             raise NoConstructorError(target, trace.traces)
@@ -231,7 +235,7 @@ class BlueprintResolver:
     def resolve(
         self, target: type[T], mode: ResolutionMode = DEFAULT_RESOLUTION_MODE
     ) -> Iterable[Blueprint[T]]:
-        if mode not in (EXHAUSTIVE, SELECT_FIRST):
+        if mode not in RESOLUTION_MODES:
             raise InvalidResolutionModeError(mode)
         tracing = Tracing(())
         try:
