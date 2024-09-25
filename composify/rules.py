@@ -79,7 +79,7 @@ def rule_decorator(
     func_id = f"@rule {func.__module__}:{func.__name__}"
     type_hints = get_type_hints(func, include_extras=True)
     return_type = ensure_type_annotation(
-        type_annotation=func
+        type_annotation=decorated
         if inspect.isclass(decorated)
         else type_hints.get("return"),
         name=f"{func_id} return",

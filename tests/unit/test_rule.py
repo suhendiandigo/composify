@@ -57,3 +57,10 @@ def test_rule_sync_invocation():
 async def test_rule_async_invocation():
     val = "Test Value"
     assert await example_async_rule(Param(val)) == Result(val)
+
+
+def test_class_rule():
+    @rule
+    class _:
+        def __init__(self, param: Param) -> None:
+            self.value = param.value
