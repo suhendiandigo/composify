@@ -1,18 +1,18 @@
 import asyncio
 import itertools
-from collections.abc import Callable, Iterable
+from collections.abc import Awaitable, Callable, Iterable, Sequence
 from typing import TypeVar
 
-from composify.blueprint import Blueprint, BlueprintResolver
+from composify.blueprint import BlueprintResolver
 from composify.builder import AsyncBuilder, Builder
-from composify.container import Container
-from composify.errors import (
-    MultipleResolutionError,
-    NoConstructorError,
-    NoResolutionError,
-    ResolutionFailureError,
+from composify.container import Container, ContainerGetter
+from composify.errors import NoConstructorError, ResolutionFailureError
+from composify.get_or_create import (
+    AsyncGetOrCreate,
+    GetOrCreate,
+    ResolutionMode,
+    blueprint_selector,
 )
-from composify.getter import Getter, ResolutionMode
 from composify.injector import Injector
 from composify.provider import (
     ConstructorProvider,
@@ -47,13 +47,71 @@ def _skip_no_constructor_error(
     return None
 
 
-class Composify(Getter):
+class ComposifyGetOrCreate(GetOrCreate):
+    def __init__(self, resolver: BlueprintResolver, builder: Builder) -> None:
+        super().__init__()
+        self._resolver = resolver
+        self._builder = builder
+
+    def one(
+        self,
+        type_: AnnotatedType[T],
+        resolution_mode: ResolutionMode = "default",
+    ) -> T:
+        plans = tuple(self._resolver.resolve(type_))
+        plan = blueprint_selector(resolution_mode)(type_, plans)
+        return self._builder.from_blueprint(plan)
+
+    def all(self, type_: AnnotatedType[T]) -> Sequence[T]:
+        try:
+            plans = tuple(self._resolver.resolve(type_))
+        except ResolutionFailureError as exc:
+            new_exc = _skip_no_constructor_error(exc)
+            if new_exc:
+                raise new_exc from exc
+            return ()
+        return tuple(self._builder.from_blueprint(plan) for plan in plans)
+
+
+class ComposifyAsyncGetOrCreate(AsyncGetOrCreate):
+    def __init__(
+        self, resolver: BlueprintResolver, builder: AsyncBuilder
+    ) -> None:
+        super().__init__()
+        self._resolver = resolver
+        self._builder = builder
+
+    async def one(
+        self,
+        type_: AnnotatedType[T],
+        resolution_mode: ResolutionMode = "default",
+    ) -> T:
+        plans = tuple(self._resolver.resolve(type_))
+        plan = blueprint_selector(resolution_mode)(type_, plans)
+        return await self._builder.from_blueprint(plan)
+
+    async def all(self, type_: AnnotatedType[T]) -> Sequence[T]:
+        try:
+            plans = tuple(self._resolver.resolve(type_))
+        except ResolutionFailureError as exc:
+            new_exc = _skip_no_constructor_error(exc)
+            if new_exc:
+                raise new_exc from exc
+            return ()
+        return tuple(
+            await asyncio.gather(
+                *(self._builder.from_blueprint(plan) for plan in plans)
+            )
+        )
+
+
+class Composify:
     def __init__(
         self,
         name: str | None = None,
         *,
-        rules: Iterable[ConstructRule],
-        providers: Iterable[ConstructorProvider],
+        rules: Iterable[ConstructRule] | None = None,
+        providers: Iterable[ConstructorProvider] | None = None,
     ) -> None:
         self._container = Container(name)
         self._rules = RuleRegistry()
@@ -65,21 +123,26 @@ class Composify(Getter):
         )
         self._async_builder = AsyncBuilder(save_to=self._container)
         self._builder = Builder(save_to=self._container)
-        self._injector = Injector(self)
+        self._getter = ContainerGetter(self._container)
+        self._injector = Injector(self._getter)
+        self._get_or_create = ComposifyGetOrCreate(
+            self._resolver, self._builder
+        )
+        self._async_get_or_create = ComposifyAsyncGetOrCreate(
+            self._resolver, self._async_builder
+        )
 
         self._container.add(self)
         self._container.add(self._container)
+        self._container.add(self._getter)
+        self._container.add(self._get_or_create)
+        self._container.add(self._async_get_or_create)
         self._container.add(self._injector)
 
-        self._resolver.register_providers(providers)
-        self._rules.register_rules(rules)
-
-    def _select_blueprint(self, resolution_mode: ResolutionMode = "default"):
-        match resolution_mode:
-            case "select_first":
-                return self._select_first_blueprint
-            case _:
-                return self._default_select_blueprint
+        if providers is not None:
+            self._resolver.register_providers(providers)
+        if rules is not None:
+            self._rules.register_rules(rules)
 
     @property
     def container(self) -> Container:
@@ -111,60 +174,24 @@ class Composify(Getter):
     def register_providers(self, *providers: ConstructorProvider) -> None:
         self._resolver.register_providers(providers)
 
-    def _default_select_blueprint(
-        self, type_: AnnotatedType[T], plans: tuple[Blueprint[T], ...]
-    ) -> Blueprint[T]:
-        if len(plans) > 1:
-            raise MultipleResolutionError(type_, plans)
-        elif len(plans) == 0:
-            raise NoResolutionError(type_)
-        return plans[0]
+    def aget_or_create(
+        self,
+        type_: AnnotatedType[T],
+        resolution_mode: ResolutionMode = "default",
+    ) -> Awaitable[T]:
+        return self._async_get_or_create.one(type_, resolution_mode)
 
-    def _select_first_blueprint(
-        self, type_: AnnotatedType[T], plans: tuple[Blueprint[T], ...]
-    ) -> Blueprint[T]:
-        if len(plans) == 0:
-            raise NoResolutionError(type_)
-        return plans[0]
+    def aget_or_create_all(
+        self, type_: AnnotatedType[T]
+    ) -> Awaitable[Sequence[T]]:
+        return self._async_get_or_create.all(type_)
 
-    async def aget(
+    def get_or_create(
         self,
         type_: AnnotatedType[T],
         resolution_mode: ResolutionMode = "default",
     ) -> T:
-        plans = tuple(self._resolver.resolve(type_))
-        plan = self._select_blueprint(resolution_mode)(type_, plans)
-        return await self._async_builder.from_blueprint(plan)
+        return self._get_or_create.one(type_, resolution_mode)
 
-    async def aget_all(self, type_: AnnotatedType[T]) -> Iterable[T]:
-        try:
-            plans = tuple(self._resolver.resolve(type_))
-        except ResolutionFailureError as exc:
-            new_exc = _skip_no_constructor_error(exc)
-            if new_exc:
-                raise new_exc from exc
-            return ()
-        return tuple(
-            await asyncio.gather(
-                *(self._async_builder.from_blueprint(plan) for plan in plans)
-            )
-        )
-
-    def get(
-        self,
-        type_: AnnotatedType[T],
-        resolution_mode: ResolutionMode = "default",
-    ) -> T:
-        plans = tuple(self._resolver.resolve(type_))
-        plan = self._select_blueprint(resolution_mode)(type_, plans)
-        return self._builder.from_blueprint(plan)
-
-    def get_all(self, type_: AnnotatedType[T]) -> Iterable[T]:
-        try:
-            plans = tuple(self._resolver.resolve(type_))
-        except ResolutionFailureError as exc:
-            new_exc = _skip_no_constructor_error(exc)
-            if new_exc:
-                raise new_exc from exc
-            return ()
-        return tuple(self._builder.from_blueprint(plan) for plan in plans)
+    def get_or_create_all(self, type_: AnnotatedType[T]) -> Sequence[T]:
+        return self._get_or_create.all(type_)

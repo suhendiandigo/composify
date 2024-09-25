@@ -3,7 +3,7 @@ from typing import Any
 
 from composify.blueprint import Blueprint, BlueprintResolver
 from composify.constructor import ConstructorFunction
-from composify.container import InstanceWrapper, _resolve_type_name
+from composify.container import InstanceWrapper
 from composify.metadata.attributes import AttributeSet, Name
 from composify.provider import (
     ConstructorProvider,
@@ -11,6 +11,7 @@ from composify.provider import (
     Static,
 )
 from composify.rules import ConstructRule, RuleRegistry, as_rule
+from composify.types import resolve_type_name
 
 
 def create_resolver(*factories: ConstructorProvider):
@@ -80,8 +81,9 @@ def instance(
     idx: int,
     attributes: AttributeSet = None,
     is_primary: bool = False,
+    priority: int = 0,
 ) -> Blueprint:
-    name = f"{_resolve_type_name(type_)}_{idx}"
+    name = f"{resolve_type_name(type_)}_{idx}"
     return Blueprint(
         "__test_instance",  # Not used for building
         InstanceWrapper(
@@ -90,6 +92,7 @@ def instance(
             instance_name=name,
             attributes=attributes or AttributeSet((Name(name),)),
             is_primary=is_primary,
+            priority=priority,
         ),
         is_async=False,
         output_type=type,  # Not used for building

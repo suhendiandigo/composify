@@ -1,5 +1,6 @@
 from abc import ABC, abstractmethod
-from collections.abc import Collection, Iterable
+from bisect import insort
+from collections.abc import Collection, Iterable, Sequence
 from dataclasses import dataclass, field
 from typing import Annotated, Any, Generic, TypeVar, get_origin
 
@@ -11,11 +12,12 @@ from composify.errors import (
     InvalidTypeAnnotation,
     MultiplePrimaryInstanceError,
 )
+from composify.get import Get
 from composify.metadata import Name, collect_attributes
 from composify.metadata.attributes import AttributeSet
 from composify.registry import (
+    EntriesCollator,
     EntriesFilterer,
-    EntriesValidator,
     Entry,
     Key,
     TypedRegistry,
@@ -40,6 +42,7 @@ class InstanceWrapper(Entry, Generic[E]):
     instance_name: str
     attributes: AttributeSet
     is_primary: bool
+    priority: int
 
     @property
     def key(self) -> Key:
@@ -60,22 +63,23 @@ def _resolve_instance_name(value: Any):
     return resolve_type_name(value.__class__)
 
 
-class ContainerUniqueEntryValidator(EntriesValidator[InstanceWrapper]):
-    def validate_entries(
-        self, entry: InstanceWrapper, others: Iterable[InstanceWrapper]
+class ContainerDefaultEntriesCollator(EntriesCollator[InstanceWrapper]):
+    def collate_entries(
+        self, entry: InstanceWrapper, entries: Iterable[InstanceWrapper]
     ) -> None:
-        for other in others:
+        for other in entries:
             if entry.instance_name == other.instance_name:
                 raise ConflictingInstanceNameError(
                     entry.instance_name, entry, other
                 )
             if entry.is_primary and other.is_primary:
                 raise MultiplePrimaryInstanceError(entry, other)
+        insort(entries, entry, key=Entry.ordering)
 
 
 def _ensure_type(
-    type_: type | None,
-) -> type:
+    type_: AnnotatedType | None,
+) -> AnnotatedType:
     if type_ is None:
         raise InvalidTypeAnnotation("Missing a type.")
     if not isinstance(type_, type):
@@ -147,13 +151,13 @@ class Container(BaseContainer):
         name: str | None = None,
         *,
         attribute_filterer: EntriesFilterer | None = None,
-        unique_validator: EntriesValidator | None = None,
+        entries_collator: EntriesCollator | None = None,
     ):
         self._name = name or hex(self.__hash__())
         self._mapping_by_type = TypedRegistry(
             entries_filterer=attribute_filterer,
-            unique_validator=unique_validator
-            or ContainerUniqueEntryValidator(),
+            entries_collator=entries_collator
+            or ContainerDefaultEntriesCollator(),
         )
         self._mapping_by_name = {}
 
@@ -176,6 +180,7 @@ class Container(BaseContainer):
         *,
         name: str | None = None,
         is_primary: bool = False,
+        priority: int = 0,
     ) -> None:
         type_ = _ensure_type(type_ or instance.__class__)
 
@@ -197,6 +202,7 @@ class Container(BaseContainer):
             instance_name=name,
             attributes=AttributeSet(tuple(attributes) + (Name(name),)),
             is_primary=is_primary,
+            priority=priority,
         )
 
         self._mapping_by_name[name] = wrapper
@@ -235,11 +241,10 @@ class Container(BaseContainer):
     def __delitem__(self, key):
         self.remove(key)
 
-    def get(self, type_: type[E]) -> E | None:
-        wrapper = self.get_wrapper(type_)
-        return wrapper.instance if wrapper else None
+    def get(self, type_: AnnotatedType[E]) -> E:
+        return self.get_wrapper(type_).instance
 
-    def get_wrapper(self, type_: type[E]) -> InstanceWrapper[E]:
+    def get_wrapper(self, type_: AnnotatedType[E]) -> InstanceWrapper[E]:
         type_ = _ensure_type(type_=type_)
         wrappers = tuple(self._mapping_by_type.get(type_))
         if not wrappers:
@@ -257,8 +262,33 @@ class Container(BaseContainer):
             return primary
         raise AmbiguousInstanceError(type_, wrappers)
 
+    def get_all(self, type_: AnnotatedType[E]) -> Sequence[E]:
+        wrappers = self.get_all_wrapper(type_)
+        return tuple(wrapper.instance for wrapper in wrappers)
+
+    def get_all_wrapper(
+        self, type_: AnnotatedType[E]
+    ) -> Sequence[InstanceWrapper[E]]:
+        type_ = _ensure_type(type_=type_)
+        return tuple(self._mapping_by_type.get(type_))
+
     def get_by_name(self, name: str, _: type[E] | None = None) -> E:
         try:
             return self._mapping_by_name[name].instance
         except KeyError:
             raise InstanceOfNameNotFoundError(name)
+
+
+class ContainerGetter(Get):
+    def __init__(self, container: Container) -> None:
+        super().__init__()
+        self._container = container
+
+    def one(
+        self,
+        type_: AnnotatedType[E],
+    ) -> E:
+        return self._container.get(type_)
+
+    def all(self, type_: AnnotatedType[E]) -> Sequence[E]:
+        return self._container.get_all(type_)

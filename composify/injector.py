@@ -4,14 +4,14 @@ from collections.abc import Callable, Coroutine
 from typing import Any, TypeVar, get_type_hints
 
 from composify.errors import MissingParameterTypeAnnotation
-from composify.getter import Getter
+from composify.get import Get
 from composify.types import ensure_type_annotation
 
 A = TypeVar("A", Any, Coroutine[Any, Any, Any])
 
 
 class Injector:
-    def __init__(self, getter: Getter) -> None:
+    def __init__(self, getter: Get) -> None:
         self._getter = getter
 
     def __call__(
@@ -68,7 +68,7 @@ class Injector:
 
             def wrapper():
                 parameters = {
-                    name: self._getter.get(type_annotation)
+                    name: self._getter.one(type_annotation)
                     for name, type_annotation in parameter_types
                 }
                 return function(**parameters, **kwargs)

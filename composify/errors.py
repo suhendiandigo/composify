@@ -64,6 +64,12 @@ class ResolutionFailureError(TypeConstructionResolutionError):
         self.traces = traces
         self.errors = errors
 
+    def contains(self, exc_type: type[ResolverError]) -> bool:
+        for error in self.errors:
+            if isinstance(error, exc_type):
+                return True
+        return False
+
 
 class TracedTypeConstructionResolutionError(TypeConstructionResolutionError):
     def __init__(self, type_: type, traces: Traces, msg: str) -> None:

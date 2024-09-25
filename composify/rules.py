@@ -10,11 +10,11 @@ from composify.errors import (
     MissingParameterTypeAnnotation,
     MissingReturnTypeAnnotation,
 )
-from composify.metadata import BaseAttributeMetadata, collect_attributes
+from composify.metadata import collect_attributes
 from composify.metadata.attributes import AttributeSet
 from composify.registry import (
+    EntriesCollator,
     EntriesFilterer,
-    EntriesValidator,
     Entry,
     Key,
     TypedRegistry,
@@ -50,8 +50,9 @@ class ConstructRule(Entry, Generic[T]):
     is_async: bool
     canonical_name: str
     output_type: type[T]
-    attributes: AttributeSet
     parameter_types: ParameterTypes
+    attributes: AttributeSet
+    priority: int
 
     @property
     def key(self) -> Key:
@@ -62,27 +63,10 @@ class ConstructRule(Entry, Generic[T]):
         return self.canonical_name
 
 
-def _make_rule(
-    func: RuleFunctionType,
-    *,
-    is_async: bool,
-    canonical_name: str,
-    output_type: type,
-    output_attributes: Iterable[BaseAttributeMetadata],
-    parameter_types: ParameterTypes,
-) -> ConstructRule:
-    return ConstructRule(
-        func,
-        is_async=is_async,
-        canonical_name=canonical_name,
-        output_type=output_type,
-        attributes=AttributeSet(output_attributes),
-        parameter_types=parameter_types,
-    )
-
-
 def rule_decorator(
     func: F,
+    *,
+    priority: int,
 ) -> F | ConstructRule:
     func_params = inspect.signature(func).parameters
     func_id = f"@rule {func.__module__}:{func.__name__}"
@@ -108,13 +92,14 @@ def rule_decorator(
     )
     effective_name = resolve_type_name(func)
 
-    rule = _make_rule(
+    rule = ConstructRule(
         func,
         is_async=asyncio.iscoroutinefunction(func),
         canonical_name=effective_name,
         output_type=return_type,
-        output_attributes=metadata,
+        attributes=metadata,
         parameter_types=parameter_types,
+        priority=priority,
     )
     setattr(
         func,
@@ -125,10 +110,15 @@ def rule_decorator(
 
 
 @wraps(rule_decorator)
-def rule(f: RuleFunctionType | None = None, /, **kwargs):
+def rule(
+    f: RuleFunctionType | None = None,
+    /,
+    *,
+    priority: int = 0,
+):
     if f is None:
-        return partial(rule_decorator, **kwargs)
-    return rule_decorator(f, **kwargs)
+        return partial(rule_decorator, priority=priority)
+    return rule_decorator(f, priority=priority)
 
 
 def as_rule(f: Any) -> ConstructRule | None:
@@ -201,12 +191,12 @@ class RuleRegistry:
         rules: Iterable[ConstructRule] | None = None,
         *,
         attribute_filterer: EntriesFilterer | None = None,
-        unique_validator: EntriesValidator | None = None,
+        entries_collator: EntriesCollator | None = None,
     ) -> None:
         self._rules = TypedRegistry(
             rules,
             entries_filterer=attribute_filterer,
-            unique_validator=unique_validator,
+            entries_collator=entries_collator,
         )
 
     def _compare_entries(
