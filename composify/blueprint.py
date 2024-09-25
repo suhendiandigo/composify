@@ -1,6 +1,6 @@
 from collections.abc import Iterable, Sequence
 from dataclasses import dataclass, field
-from typing import Generic, TypeAlias, TypeVar
+from typing import Annotated, Generic, TypeAlias, TypeVar
 
 from composify._qualifiers import Resolution
 from composify.constructor import Constructor, ConstructorFunction
@@ -18,7 +18,7 @@ from composify.resolutions import (
     RESOLUTION_MODES,
     ResolutionMode,
 )
-from composify.types import AnnotatedType
+from composify.types import AnnotatedType, get_type
 
 T = TypeVar("T")
 
@@ -211,9 +211,12 @@ class BlueprintResolver:
         self, target: type[T], name: str, mode: ResolutionMode, trace: Tracing
     ) -> Iterable[Blueprint[T]]:
         qualifiers = collect_qualifiers(target)
+        type_ = get_type(target)
         if resolution := qualifiers.get(Resolution):
             mode = resolution.mode
-        plans = self._create_plans(target, mode)
+        else:
+            type_ = Annotated[type_, Resolution(mode)]
+        plans = self._create_plans(type_, mode)
         if not plans:
             raise NoConstructorError(target, trace.traces)
         errors: list[ResolverError] = []
