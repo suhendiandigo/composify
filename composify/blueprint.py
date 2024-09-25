@@ -97,6 +97,20 @@ class BlueprintResolver:
         # Our memo is no longer valid
         self.clear_memo()
 
+    def register_providers(
+        self, providers: Iterable[ConstructorProvider]
+    ) -> None:
+        """Register a new provider to the resolver."""
+        for provider in providers:
+            if provider in self._providers:
+                raise ValueError(
+                    f"Provider {provider!r} is already registered."
+                )
+            self._providers = self._providers + (provider,)
+
+        # Our memo is no longer valid
+        self.clear_memo()
+
     def _raw_create_plans(
         self, target: AnnotatedType[T]
     ) -> Iterable[Constructor]:

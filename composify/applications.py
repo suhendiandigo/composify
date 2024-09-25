@@ -51,6 +51,9 @@ class Composify(Getter):
     def __init__(
         self,
         name: str | None = None,
+        *,
+        rules: Iterable[ConstructRule],
+        providers: Iterable[ConstructorProvider],
     ) -> None:
         self._container = Container(name)
         self._rules = RuleRegistry()
@@ -67,6 +70,9 @@ class Composify(Getter):
         self._container.add(self)
         self._container.add(self._container)
         self._container.add(self._injector)
+
+        self._resolver.register_providers(providers)
+        self._rules.register_rules(rules)
 
     def _select_blueprint(self, resolution_mode: ResolutionMode = "default"):
         match resolution_mode:
@@ -101,6 +107,9 @@ class Composify(Getter):
 
     def register_provider(self, provider: ConstructorProvider) -> None:
         self._resolver.register_provider(provider)
+
+    def register_providers(self, *providers: ConstructorProvider) -> None:
+        self._resolver.register_providers(providers)
 
     def _default_select_blueprint(
         self, type_: AnnotatedType[T], plans: tuple[Blueprint[T], ...]
