@@ -7,6 +7,7 @@ from composify.errors import (
     CyclicDependencyError,
     NoConstructorError,
     ResolutionFailureError,
+    ResolverError,
 )
 from composify.metadata.attributes import ProvidedBy
 from composify.provider import ConstructorProvider
@@ -175,7 +176,7 @@ class BlueprintResolver:
         plans = self._create_plans(target)
         if not plans:
             raise NoConstructorError(target, trace.traces)
-        errors: list[Exception] = []
+        errors: list[ResolverError] = []
         constructions: list[Blueprint[T]] = []
         for plan_order, plan in enumerate(plans):
             try:
@@ -198,4 +199,4 @@ class BlueprintResolver:
                 key=lambda x: x.priority,
             )
         except (NoConstructorError, CyclicDependencyError) as exc:
-            raise ResolutionFailureError(target, tracing.traces, [exc])
+            raise ResolutionFailureError(target, tracing.traces, [exc]) from exc

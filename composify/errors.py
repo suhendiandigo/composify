@@ -37,11 +37,30 @@ Trace: TypeAlias = tuple[str, str, type]
 Traces: TypeAlias = tuple[Trace, ...]
 
 
+def _format_trace(trace: Trace) -> str:
+    return (
+        f"({trace[1]}: {trace[0]} -> {trace[2].__module__}.{trace[2].__name__})"
+    )
+
+
+def _format_traces(traces: Traces) -> str:
+    return "->".join(_format_trace(trace) for trace in traces)
+
+
 class ResolutionFailureError(TypeConstructionResolutionError):
     def __init__(
         self, type_: type, traces: Traces, errors: Iterable[ResolverError]
     ) -> None:
-        super().__init__(type_, f"Failed to resolve for type {type_}")
+        error_strings = tuple(
+            f"- {_format_traces(error.traces)}: {error}"
+            if isinstance(error, TracedTypeConstructionResolutionError)
+            else f"- {error}"
+            for error in errors
+        )
+        error_string = "\n".join(error_strings)
+        super().__init__(
+            type_, f"Failed to resolve for type {type_}\n{error_string}"
+        )
         self.traces = traces
         self.errors = errors
 
