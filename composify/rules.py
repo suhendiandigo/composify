@@ -102,7 +102,7 @@ def rule_decorator(
     effective_name = resolve_type_name(func)
 
     rule: ConstructRule = ConstructRule(
-        func,
+        decorated,
         is_async=asyncio.iscoroutinefunction(func),
         canonical_name=effective_name,
         output_type=return_type,
@@ -115,7 +115,7 @@ def rule_decorator(
         RULE_ATTR,
         rule,
     )
-    return func
+    return decorated
 
 
 @wraps(rule_decorator)

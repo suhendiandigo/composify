@@ -61,6 +61,8 @@ async def test_rule_async_invocation():
 
 def test_class_rule():
     @rule
-    class _:
+    class Rule:
         def __init__(self, param: Param) -> None:
             self.value = param.value
+
+    assert as_rule(Rule) is not None
