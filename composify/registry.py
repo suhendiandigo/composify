@@ -56,14 +56,12 @@ class DefaultEntriesFilterer(EntriesFilterer[E]):
     def filter_entries(
         self, entries: Iterable[E], context: FilteringContext
     ) -> Iterable[E]:
-        if context.attributes and (
-            filtered := tuple(
+        if context.attributes:
+            entries = tuple(
                 entry
                 for entry in entries
                 if entry.attributes.issuperset(context.attributes)
             )
-        ):
-            entries = filtered
         if entries:
             if context.qualifiers.get(DisallowSubclass):
                 entries = tuple(
