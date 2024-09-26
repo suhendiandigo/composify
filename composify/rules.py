@@ -94,6 +94,17 @@ def _add_qualifiers(
     return type_
 
 
+def _get_init_func(cls: type):
+    if cls.__init__ == object.__init__:
+        func = cls
+        func_params = ()
+    else:
+        func = cls.__init__
+        func_params = list(inspect.signature(func).parameters)
+        del func_params[0]
+    return func, func_params
+
+
 def _rule_decorator(
     decorated: F,
     *,
@@ -101,9 +112,7 @@ def _rule_decorator(
     dependency_qualifiers: Iterable[BaseQualifierMetadata] | None = None,
 ) -> F:
     if inspect.isclass(decorated):
-        func = decorated.__init__
-        func_params = list(inspect.signature(func).parameters)
-        del func_params[0]
+        func, func_params = _get_init_func(decorated)
     else:
         func = decorated
         func_params = list(inspect.signature(func).parameters)
