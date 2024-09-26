@@ -79,7 +79,8 @@ class GetOrCreate(ABC, _DefaultResolution):
 
         Raises:
             InvalidResolutionModeError: Raised if the resolution mode is invalid.
-            ResolutionFailureError: Raised if there is no generated blueprint.
+            MultipleResolutionError: If there are multiple possible instances.
+            NoResolutionError: If there is no available instance.
         """
         raise NotImplementedError()
 
@@ -124,7 +125,8 @@ class AsyncGetOrCreate(ABC, _DefaultResolution):
 
         Raises:
             InvalidResolutionModeError: Raised if the resolution mode is invalid.
-            ResolutionFailureError: Raised if there is no generated blueprint.
+            MultipleResolutionError: If there are multiple possible instances.
+            NoResolutionError: If there is no available instance.
         """
         raise NotImplementedError()
 
