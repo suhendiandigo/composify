@@ -74,10 +74,12 @@ class Injector:
             function=function, params=params, exclude=exclude
         )
 
-        parameters = {
+        parameters: dict = {
             name: self._get_or_create.one(type_annotation)
             for name, type_annotation in parameter_types
         }
+
+        del parameter_types, exclude
 
         @wraps(function)
         def wrapper(*args, **kwargs):
@@ -134,6 +136,8 @@ class AsyncInjector:
                 strict=True,
             )
         )
+
+        del parameter_types, exclude
 
         @wraps(function)
         def wrapper(*args, **kwargs):
