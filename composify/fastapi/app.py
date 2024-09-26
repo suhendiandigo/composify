@@ -95,4 +95,4 @@ def create_app(
     return Composify(
         providers=providers,
         rules=itertools.chain(default_rules, rules),
-    ).get_or_create(FastAPI)
+    ).get_or_create.one(FastAPI)
