@@ -24,7 +24,7 @@ from composify.get_or_create import (
     GetOrCreate,
     ResolutionMode,
 )
-from composify.injector import Injector
+from composify.injector import AsyncInjector, Injector
 from composify.provider import (
     ConstructorProvider,
     ContainerInstanceProvider,
@@ -243,9 +243,8 @@ class Composify:
         self._async_get_or_create = ComposifyAsyncGetOrCreate(
             self._resolver, self._async_builder, default_resolution
         )
-        self._injector = Injector(
-            self._get_or_create, self._async_get_or_create
-        )
+        self._injector = Injector(self._get_or_create)
+        self._async_injector = AsyncInjector(self._async_get_or_create)
 
         self._container.add(self)
         self._container.add(self._container)
@@ -266,16 +265,12 @@ class Composify:
 
     @property
     def inject(self) -> Injector:
-        """Wraps a function a supply its parameter using GetOrCreate.
+        """Injector instance."""
+        return self._injector
 
-        Args:
-            function (Callable[..., A]): The function to wrap.
-            params (dict[str, Any] | None, optional): Additional parameters. Defaults to None.
-            exclude (set[str] | None, optional): Parameters to exclude from injection. Defaults to None.
-
-        Returns:
-            Callable[..., A]: An auto-wired function.
-        """
+    @property
+    def ainject(self) -> AsyncInjector:
+        """Async injector instance."""
         return self._injector
 
     @property
