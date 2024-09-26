@@ -2,8 +2,9 @@ from dataclasses import dataclass
 
 import pytest
 
-from composify import Composify, rule
-from composify.errors import AsyncBlueprintError, MultipleResolutionError
+from composify import AsyncComposify, Composify, rule
+from composify.errors import MultipleResolutionError
+from composify.rules import AsyncRuleNotAllowedError
 
 
 @dataclass
@@ -76,7 +77,7 @@ async def async_create_value_2() -> Value:
 
 @pytest.mark.asyncio_cooperative
 async def test_async_default_resolution():
-    composify = Composify()
+    composify = AsyncComposify()
 
     composify.add_rule(async_create_value)
 
@@ -100,7 +101,7 @@ async def test_async_default_resolution():
 
 @pytest.mark.asyncio_cooperative
 async def test_async_first_resolution():
-    composify = Composify()
+    composify = AsyncComposify()
 
     composify.add_rule(async_create_value)
 
@@ -128,7 +129,5 @@ async def test_async_first_resolution():
 def test_sync_build_on_async():
     composify = Composify()
 
-    composify.add_rule(async_create_value)
-
-    with pytest.raises(AsyncBlueprintError):
-        composify.get_or_create.one(Value, resolution_mode="exhaustive")
+    with pytest.raises(AsyncRuleNotAllowedError):
+        composify.add_rule(async_create_value)

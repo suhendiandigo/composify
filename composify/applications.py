@@ -208,11 +208,11 @@ class ComposifyAsyncGetOrCreate(AsyncGetOrCreate):
         )
 
 
-class Composify:
-    """Composify app class. The main entry point to use Composify.
+class BaseComposify:
+    """Minimalist Composify app class. The main entry point to use Composify.
 
     Example:
-        composify = Composify()
+        composify = BaseComposify()
 
     """
 
@@ -220,13 +220,15 @@ class Composify:
         self,
         name: str | None = None,
         *,
+        allows_async: bool,
         rules: Iterable[ConstructRule] | None = None,
         providers: Iterable[ConstructorProvider] | None = None,
         default_resolution: ResolutionMode = DEFAULT_RESOLUTION_MODE,
     ) -> None:
+        # Core components
         self._default_resolution = default_resolution
         self._container = Container(name)
-        self._rules = RuleRegistry()
+        self._rules = RuleRegistry(allows_async=allows_async)
         self._resolver = BlueprintResolver(
             [
                 ContainerInstanceProvider(self._container),
@@ -234,25 +236,12 @@ class Composify:
             ],
             default_resolution=default_resolution,
         )
-        self._async_builder = AsyncBuilder(save_to=self._container)
-        self._builder = Builder(save_to=self._container)
         self._getter = ContainerGetter(self._container)
-        self._get_or_create = ComposifyGetOrCreate(
-            self._resolver, self._builder, default_resolution
-        )
-        self._async_get_or_create = ComposifyAsyncGetOrCreate(
-            self._resolver, self._async_builder, default_resolution
-        )
-        self._injector = Injector(self._get_or_create)
-        self._async_injector = AsyncInjector(self._async_get_or_create)
-
         self._container.add(self)
         self._container.add(self._container)
         self._container.add(self._getter)
-        self._container.add(self._get_or_create)
-        self._container.add(self._async_get_or_create)
-        self._container.add(self._injector)
 
+        # Register user providers and rules
         if providers is not None:
             self._resolver.register_providers(providers)
         if rules is not None:
@@ -262,16 +251,6 @@ class Composify:
     def container(self) -> Container:
         """The container of this composify object."""
         return self._container
-
-    @property
-    def inject(self) -> Injector:
-        """Injector instance."""
-        return self._injector
-
-    @property
-    def ainject(self) -> AsyncInjector:
-        """Async injector instance."""
-        return self._injector
 
     @property
     def default_resolution(self) -> ResolutionMode:
@@ -292,16 +271,6 @@ class Composify:
     def get(self) -> Get:
         """Get a an existing component."""
         return self._getter
-
-    @property
-    def get_or_create(self) -> GetOrCreate:
-        """Get or Create a new component."""
-        return self._get_or_create
-
-    @property
-    def aget_or_create(self) -> AsyncGetOrCreate:
-        """Get or Create a new component."""
-        return self._async_get_or_create
 
     def add_rule(self, rule: ConstructRule | Callable) -> None:
         """Register a new rule."""
@@ -324,3 +293,102 @@ class Composify:
     def register_providers(self, *providers: ConstructorProvider) -> None:
         """Register multiple new providers."""
         self._resolver.register_providers(providers)
+
+
+class _SyncMixin(BaseComposify):
+    def __init__(self, *args, **kwargs) -> None:
+        super().__init__(*args, **kwargs)
+        # Supports for simple get_or_create and auto-wiring via inject.
+        self._builder = Builder(save_to=self._container)
+        self._get_or_create = ComposifyGetOrCreate(
+            self._resolver, self._builder, self.default_resolution
+        )
+        self._injector = Injector(self._get_or_create)
+
+        self._container.add(self._get_or_create)
+        self._container.add(self._injector)
+
+    @property
+    def inject(self) -> Injector:
+        """Injector instance."""
+        return self._injector
+
+    @property
+    def get_or_create(self) -> GetOrCreate:
+        """Get or Create a new component."""
+        return self._get_or_create
+
+
+class _AsyncMixin(BaseComposify):
+    def __init__(self, *args, **kwargs) -> None:
+        super().__init__(*args, **kwargs)
+
+        # Supports for async aget_or_create and async auto-wiring via ainject.
+        self._async_builder = AsyncBuilder(save_to=self._container)
+        self._async_get_or_create = ComposifyAsyncGetOrCreate(
+            self._resolver, self._async_builder, self.default_resolution
+        )
+        self._async_injector = AsyncInjector(self._async_get_or_create)
+
+        self._container.add(self._async_get_or_create)
+        self._container.add(self._async_injector)
+
+    @property
+    def ainject(self) -> AsyncInjector:
+        """Async injector instance."""
+        return self._async_injector
+
+    @property
+    def aget_or_create(self) -> AsyncGetOrCreate:
+        """Get or Create a new component."""
+        return self._async_get_or_create
+
+
+class Composify(_SyncMixin):
+    """Composify app class. The main entry point to use Composify.
+
+    Example:
+        composify = Composify()
+
+    """
+
+    def __init__(
+        self,
+        name: str | None = None,
+        *,
+        rules: Iterable[ConstructRule] | None = None,
+        providers: Iterable[ConstructorProvider] | None = None,
+        default_resolution: ResolutionMode = DEFAULT_RESOLUTION_MODE,
+    ) -> None:
+        super().__init__(
+            name,
+            rules=rules,
+            providers=providers,
+            default_resolution=default_resolution,
+            allows_async=False,
+        )
+
+
+class AsyncComposify(_SyncMixin, _AsyncMixin):
+    """Composify app class for asyncio support. The main entry point to use Composify.
+
+    Example:
+        composify = AsyncComposify()
+
+    """
+
+    def __init__(
+        self,
+        name: str | None = None,
+        *,
+        rules: Iterable[ConstructRule] | None = None,
+        providers: Iterable[ConstructorProvider] | None = None,
+        default_resolution: ResolutionMode = DEFAULT_RESOLUTION_MODE,
+    ) -> None:
+        super().__init__(
+            name,
+            rules=rules,
+            providers=providers,
+            default_resolution=default_resolution,
+            allows_async=True,
+        )

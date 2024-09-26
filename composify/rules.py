@@ -254,8 +254,14 @@ class DuplicateRuleError(RuleError):
         )
 
 
+class AsyncRuleNotAllowedError(RuleError):
+    def __init__(self, rule: ConstructRule) -> None:
+        self.rule = rule
+        super().__init__(f"Async rule is not allowed for registry: {rule!r}.")
+
+
 class RuleRegistry:
-    __slots__ = "_rules"
+    __slots__ = ("_rules", "_allows_async")
 
     _rules: TypedRegistry[ConstructRule]
 
@@ -265,12 +271,18 @@ class RuleRegistry:
         *,
         attribute_filterer: EntriesFilterer | None = None,
         entries_collator: EntriesCollator | None = None,
+        allows_async: bool = True,
     ) -> None:
         self._rules = TypedRegistry(
             rules,
             entries_filterer=attribute_filterer,
             entries_collator=entries_collator,
         )
+        self._allows_async = allows_async
+
+    @property
+    def allows_async(self) -> bool:
+        return self._allows_async
 
     def _compare_entries(
         self, entry: ConstructRule, other: ConstructRule
@@ -278,10 +290,13 @@ class RuleRegistry:
         return entry == other
 
     def register_rule(self, rule: ConstructRule) -> None:
+        if rule.is_async and not self.allows_async:
+            raise AsyncRuleNotAllowedError(rule)
         self._rules.add_entry(rule)
 
     def register_rules(self, rules: Iterable[ConstructRule]) -> None:
-        self._rules.add_entries(rules)
+        for rule in rules:
+            self.register_rule(rule)
 
     def get(self, target: AnnotatedType[T]) -> Iterable[ConstructRule[T]]:
         return self._rules.get(target)
