@@ -76,6 +76,10 @@ class GetOrCreate(ABC, _DefaultResolution):
 
         Returns:
             T: An instance of T
+
+        Raises:
+            InvalidResolutionModeError: Raised if the resolution mode is invalid.
+            ResolutionFailureError: Raised if there is no generated blueprint.
         """
         raise NotImplementedError()
 
@@ -93,6 +97,9 @@ class GetOrCreate(ABC, _DefaultResolution):
 
         Returns:
             Sequence[T]: All instances of T.
+
+        Raises:
+            InvalidResolutionModeError: Raised if the resolution mode is invalid.
         """
         raise NotImplementedError()
 
@@ -114,6 +121,10 @@ class AsyncGetOrCreate(ABC, _DefaultResolution):
 
         Returns:
             T: An instance of T
+
+        Raises:
+            InvalidResolutionModeError: Raised if the resolution mode is invalid.
+            ResolutionFailureError: Raised if there is no generated blueprint.
         """
         raise NotImplementedError()
 
@@ -131,5 +142,8 @@ class AsyncGetOrCreate(ABC, _DefaultResolution):
 
         Returns:
             Sequence[T]: All instances of T.
+
+        Raises:
+            InvalidResolutionModeError: Raised if the resolution mode is invalid.
         """
         raise NotImplementedError()

@@ -101,7 +101,14 @@ class BlueprintResolver:
         self._memo.clear()
 
     def register_provider(self, provider: ConstructorProvider) -> None:
-        """Register a new provider to the resolver."""
+        """Register a new provider to the resolver.
+
+        Args:
+            provider (ConstructorProvider): The provider to register.
+
+        Raises:
+            ValueError: If a provider is already register.
+        """
         if provider in self._providers:
             raise ValueError(f"Provider {provider!r} is already registered.")
         self._providers = self._providers + (provider,)
@@ -112,7 +119,14 @@ class BlueprintResolver:
     def register_providers(
         self, providers: Iterable[ConstructorProvider]
     ) -> None:
-        """Register a new provider to the resolver."""
+        """Register new providers to the resolver.
+
+        Args:
+            providers (Iterable[ConstructorProvider]): The providers to register.
+
+        Raises:
+            ValueError: If a provider is already register.
+        """
         for provider in providers:
             if provider in self._providers:
                 raise ValueError(

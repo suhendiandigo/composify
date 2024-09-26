@@ -300,6 +300,7 @@ class Container(BaseContainer):
 
         Raises:
             ConflictingInstanceNameError: If another object with the exact name already exists.
+            InvalidTypeAnnotation: If type_ contains invalid type annotation.
         """
         type_ = _ensure_type(type_ or instance.__class__)
 
@@ -384,6 +385,11 @@ class Container(BaseContainer):
 
         Returns:
             E: An existing instance of E.
+
+        Raises:
+            InvalidTypeAnnotation: If type_ contains invalid type annotation.
+            AmbiguousInstanceError: If there are multiple result for type.
+            InstanceOfTypeNotFoundError: If the objects of type do not exist.
         """
         return self.get_wrapper(type_).instance
 
@@ -395,6 +401,11 @@ class Container(BaseContainer):
 
         Returns:
             InstanceWrapper[E]: The container wrapper for E.
+
+        Raises:
+            InvalidTypeAnnotation: If type_ contains invalid type annotation.
+            AmbiguousInstanceError: If there are multiple result for type.
+            InstanceOfTypeNotFoundError: If the objects of type do not exist.
         """
         type_ = _ensure_type(type_=type_)
         wrappers = self._mapping_by_type.get(type_)
@@ -436,6 +447,9 @@ class Container(BaseContainer):
 
         Returns:
             Sequence[InstanceWrapper[E]]: All container wrappers for E.
+
+        Raises:
+            InvalidTypeAnnotation: If type_ contains invalid type annotation.
         """
         type_ = _ensure_type(type_=type_)
         return tuple(self._mapping_by_type.get(type_))

@@ -38,7 +38,7 @@ rules = collect_rules()
 def test_router():
     composify = Composify(rules=itertools.chain(default_rules, rules))
 
-    routers = composify.get_or_create(APIRouterCollection)
+    routers = composify.get_or_create.one(APIRouterCollection)
 
     assert len(routers) == 1
 
@@ -59,7 +59,7 @@ rules_2 = collect_rules()
 def test_deduplicated_router():
     composify = Composify(rules=itertools.chain(default_rules, rules_2))
 
-    routers = composify.get_or_create(APIRouterCollection)
+    routers = composify.get_or_create.one(APIRouterCollection)
 
     assert len(routers) == 2
     assert routers[0].prefix == ""
@@ -93,9 +93,9 @@ async def test_router_lifespan():
         )
     )
 
-    lifespan = composify.get_or_create(Lifespan)
-    routers = composify.get_or_create(APIRouterCollection)
-    lifespan_impl = composify.get_or_create(ExampleLifespan)
+    lifespan = composify.get_or_create.one(Lifespan)
+    routers = composify.get_or_create.one(APIRouterCollection)
+    lifespan_impl = composify.get_or_create.one(ExampleLifespan)
 
     assert len(routers) == 1
 

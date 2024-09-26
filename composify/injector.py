@@ -37,6 +37,10 @@ class Injector:
 
         Returns:
             Callable[..., A]: An auto-wired function.
+
+        Raises:
+            MissingParameterTypeAnnotation: Raised if there are any missing type annotation.
+
         """
         func_id = f"{function.__module__}:{function.__name__}"
         func_params = inspect.signature(function).parameters

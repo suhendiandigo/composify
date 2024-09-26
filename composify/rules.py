@@ -168,6 +168,12 @@ def rule(
 
     Returns:
         The input function or class.
+
+    Raises:
+        MissingReturnTypeAnnotation: Raised if the return type annotation is missing.
+        MissingParameterTypeAnnotation: Raised if there are any missing type annotation from parameter.
+        DuplicatedEntryError: Raised if there are duplicated rule.
+
     """
     if f is None:
         return partial(

@@ -11,7 +11,7 @@ class ExampleSettings(BaseSettings, frozen=True):
 def test_request_setting():
     composify = Composify(providers=[PydanticSettingsProvider()])
 
-    settings = composify.get_or_create(ExampleSettings)
+    settings = composify.get_or_create.one(ExampleSettings)
 
     assert isinstance(settings, ExampleSettings)
     assert settings.value == 5

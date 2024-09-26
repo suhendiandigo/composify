@@ -27,16 +27,16 @@ def test_default_resolution():
     composify.add_rule(create_value)
 
     assert (
-        composify.get_or_create(Value, resolution_mode="exhaustive")
+        composify.get_or_create.one(Value, resolution_mode="exhaustive")
         == create_value()
     )
 
     composify.add_rule(create_value_2)
 
     with pytest.raises(MultipleResolutionError):
-        composify.get_or_create(Value, resolution_mode="exhaustive")
+        composify.get_or_create.one(Value, resolution_mode="exhaustive")
 
-    assert composify.get_or_create_all(Value, resolution_mode="exhaustive") == (
+    assert composify.get_or_create.all(Value, resolution_mode="exhaustive") == (
         create_value(),
         create_value_2(),
     )
@@ -48,18 +48,18 @@ def test_first_resolution():
     composify.add_rule(create_value)
 
     assert (
-        composify.get_or_create(Value, resolution_mode="select_first")
+        composify.get_or_create.one(Value, resolution_mode="select_first")
         == create_value()
     )
 
     composify.add_rule(create_value_2)
 
     assert (
-        composify.get_or_create(Value, resolution_mode="select_first")
+        composify.get_or_create.one(Value, resolution_mode="select_first")
         == create_value()
     )
 
-    assert composify.get_or_create_all(
+    assert composify.get_or_create.all(
         Value, resolution_mode="select_first"
     ) == (create_value(),)
 
@@ -81,16 +81,16 @@ async def test_async_default_resolution():
     composify.add_rule(async_create_value)
 
     assert (
-        await composify.aget_or_create(Value, resolution_mode="exhaustive")
+        await composify.aget_or_create.one(Value, resolution_mode="exhaustive")
         == create_value()
     )
 
     composify.add_rule(async_create_value_2)
 
     with pytest.raises(MultipleResolutionError):
-        await composify.aget_or_create(Value, resolution_mode="exhaustive")
+        await composify.aget_or_create.one(Value, resolution_mode="exhaustive")
 
-    assert await composify.aget_or_create_all(
+    assert await composify.aget_or_create.all(
         Value, resolution_mode="exhaustive"
     ) == (
         create_value(),
@@ -105,17 +105,21 @@ async def test_async_first_resolution():
     composify.add_rule(async_create_value)
 
     assert (
-        await composify.aget_or_create(Value, resolution_mode="select_first")
+        await composify.aget_or_create.one(
+            Value, resolution_mode="select_first"
+        )
     ) == create_value()
 
     composify.add_rule(async_create_value_2)
 
     assert (
-        await composify.aget_or_create(Value, resolution_mode="select_first")
+        await composify.aget_or_create.one(
+            Value, resolution_mode="select_first"
+        )
     ) == create_value()
 
     assert (
-        await composify.aget_or_create_all(
+        await composify.aget_or_create.all(
             Value, resolution_mode="select_first"
         )
     ) == (create_value(),)
@@ -127,4 +131,4 @@ def test_sync_build_on_async():
     composify.add_rule(async_create_value)
 
     with pytest.raises(AsyncBlueprintError):
-        composify.get_or_create(Value, resolution_mode="exhaustive")
+        composify.get_or_create.one(Value, resolution_mode="exhaustive")
