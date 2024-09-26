@@ -1,3 +1,9 @@
+import pytest
+
+from composify.errors import (
+    MultipleDependencyResolutionError,
+    ResolutionFailureError,
+)
 from composify.provider import ContainerInstanceProvider
 from composify.resolutions import UNIQUE
 from tests.example_complex_rules import (
@@ -8,7 +14,7 @@ from tests.example_complex_rules import (
     default_param,
     infer_param_1,
     infer_param_2,
-    rules,
+    rules_1,
     rules_2,
 )
 from tests.utils import (
@@ -22,7 +28,7 @@ from tests.utils import (
 
 def test_comparison():
     resolver = create_resolver(
-        create_rule_provider(*rules),
+        create_rule_provider(*rules_1),
     )
     plans = list(resolver.resolve(Param))
     assert plans[0] == blueprint(default_param)
@@ -32,7 +38,7 @@ def test_comparison():
 def test_plan_ordering(container, compare_blueprints):
     resolver = create_resolver(
         ContainerInstanceProvider(container),
-        create_rule_provider(*rules),
+        create_rule_provider(*rules_1),
     )
     _value = Param(5)
     container.add(_value)
@@ -66,7 +72,7 @@ def test_plan_ordering(container, compare_blueprints):
 
 
 def test_rule_resolver(compare_blueprints):
-    resolver = create_rule_resolver(*rules)
+    resolver = create_rule_resolver(*rules_1)
 
     compare_blueprints(
         resolver.resolve(Result),
@@ -93,8 +99,16 @@ def test_container_resolver(container, container_resolver, compare_blueprints):
     )
 
 
-def test_unique_resolver(compare_blueprints):
+def test_unique_resolver_error():
     resolver = create_rule_resolver(*rules_2, default_resolution=UNIQUE)
+
+    with pytest.raises(ResolutionFailureError) as exc:
+        (resolver.resolve(Result),)
+    assert exc.value.contains(MultipleDependencyResolutionError)
+
+
+def test_unique_resolver(compare_blueprints):
+    resolver = create_rule_resolver(*rules_1, default_resolution=UNIQUE)
 
     compare_blueprints(
         resolver.resolve(Result),

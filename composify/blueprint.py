@@ -2,6 +2,7 @@
 
 from collections.abc import Iterable, Sequence
 from dataclasses import dataclass, field
+from functools import partial
 from typing import Annotated, Generic, TypeAlias, TypeVar
 
 from composify._qualifiers import Resolution
@@ -9,6 +10,7 @@ from composify.constructor import Constructor, ConstructorFunction
 from composify.errors import (
     CyclicDependencyError,
     InvalidResolutionModeError,
+    MultipleDependencyResolutionError,
     NoConstructorError,
     ResolutionFailureError,
     ResolverError,
@@ -19,6 +21,8 @@ from composify.resolutions import (
     DEFAULT_RESOLUTION_MODE,
     EXHAUSTIVE,
     RESOLUTION_MODES,
+    SELECT_FIRST,
+    UNIQUE,
     ResolutionMode,
 )
 from composify.types import AnnotatedType
@@ -168,6 +172,39 @@ class BlueprintResolver:
             self._memo[target] = result
         return result
 
+    def _resolve_unique(
+        self,
+        target: AnnotatedType[T],
+        name: str,
+        trace: _Tracing,
+    ):
+        resolved: Iterable = self._resolve(
+            target=target,
+            name=name,
+            mode=UNIQUE,
+            trace=trace,
+        )
+        iterator = iter(resolved)
+        first = next(iterator)
+        second = next(iterator, None)
+        if second is not None:
+            raise MultipleDependencyResolutionError(target, trace.traces)
+        return (first,)
+
+    def _resolve_first(
+        self,
+        target: AnnotatedType[T],
+        name: str,
+        trace: _Tracing,
+    ):
+        resolved: Iterable = self._resolve(
+            target=target,
+            name=name,
+            mode=SELECT_FIRST,
+            trace=trace,
+        )
+        return (_get_first(resolved),)
+
     def _resolve_plan(
         self,
         target: AnnotatedType[T],
@@ -184,35 +221,27 @@ class BlueprintResolver:
         if plan.dependencies:
             parameters: list[tuple[str, tuple[Blueprint, ...]]] = []
             for dependency_name, dependency in plan.dependencies:
-                if mode == EXHAUSTIVE:
-                    parameters.append(
-                        (
-                            dependency_name,
-                            tuple(
-                                self._resolve(
-                                    target=dependency,
-                                    name=dependency_name,
-                                    mode=mode,
-                                    trace=tracing,
-                                )
-                            ),
-                        )
+                match mode:
+                    case "unique":
+                        resolve = self._resolve_unique
+                    case "exhaustive":
+                        resolve = partial(self._resolve, mode=EXHAUSTIVE)
+                    case "select_first":
+                        resolve = self._resolve_first
+                    case _:
+                        raise InvalidResolutionModeError(mode)
+                parameters.append(
+                    (
+                        dependency_name,
+                        tuple(
+                            resolve(
+                                target=dependency,
+                                name=dependency_name,
+                                trace=tracing,
+                            )
+                        ),
                     )
-                else:
-                    blueprint = _get_first(
-                        self._resolve(
-                            target=dependency,
-                            name=dependency_name,
-                            mode=mode,
-                            trace=tracing,
-                        )
-                    )
-                    parameters.append(
-                        (
-                            dependency_name,
-                            (blueprint,),
-                        )
-                    )
+                )
             i = 0
             for parameter_permutation, level in permutate_parameters(
                 parameters
@@ -312,5 +341,9 @@ class BlueprintResolver:
                 ),
                 key=lambda x: x.priority,
             )
-        except (NoConstructorError, CyclicDependencyError) as exc:
+        except (
+            NoConstructorError,
+            CyclicDependencyError,
+            MultipleDependencyResolutionError,
+        ) as exc:
             raise ResolutionFailureError(target, tracing.traces, [exc]) from exc

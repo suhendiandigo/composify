@@ -131,6 +131,17 @@ class CyclicDependencyError(TracedTypeConstructionResolutionError):
         )
 
 
+class MultipleDependencyResolutionError(TracedTypeConstructionResolutionError):
+    """Raised when a dependency contains multiple resolutions in UNIQUE resolution mode."""
+
+    def __init__(self, type_: type, traces: Traces) -> None:
+        super().__init__(
+            type_,
+            traces,
+            f"Multiple dependency resolutions found for {type_!r}",
+        )
+
+
 class ContainerError(Exception):
     """Base classes for all container related errors."""
 

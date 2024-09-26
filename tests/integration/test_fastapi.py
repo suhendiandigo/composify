@@ -7,6 +7,10 @@ from fastapi import APIRouter
 
 from composify import rule
 from composify.applications import Composify
+from composify.errors import (
+    MultipleDependencyResolutionError,
+    ResolutionFailureError,
+)
 from composify.fastapi import APIRouterCollection, LifespanHook, default_rules
 from composify.fastapi.lifespan import Lifespan
 from composify.rules import as_rule, collect_rules
@@ -43,15 +47,10 @@ def default_prefix() -> Prefix:
     return Prefix("/default")
 
 
-@rule
-def unused_prefix() -> Prefix:
-    return Prefix("/unused")
-
-
 rules_2 = collect_rules()
 
 
-def test_deduplicated_router():
+def test_get_multiple_routers():
     composify = Composify(rules=itertools.chain(default_rules, rules_2))
 
     routers = composify.get_or_create.one(APIRouterCollection)
@@ -97,3 +96,19 @@ async def test_router_lifespan():
     async with lifespan(None):
         assert lifespan_impl.startup
     assert lifespan_impl.shutdown
+
+
+@rule
+def unused_prefix() -> Prefix:
+    return Prefix("/unused")
+
+
+rules_3 = collect_rules()
+
+
+def test_error_for_permutations():
+    composify = Composify(rules=itertools.chain(default_rules, rules_3))
+
+    with pytest.raises(ResolutionFailureError) as exc:
+        composify.get_or_create.one(APIRouterCollection)
+    assert exc.value.contains(MultipleDependencyResolutionError)
