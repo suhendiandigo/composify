@@ -17,6 +17,7 @@ from composify.metadata.qualifiers import collect_qualifiers
 from composify.provider import ConstructorProvider
 from composify.resolutions import (
     DEFAULT_RESOLUTION_MODE,
+    EXHAUSTIVE,
     RESOLUTION_MODES,
     ResolutionMode,
 )
@@ -80,6 +81,10 @@ class _Tracing:
         self, trace: tuple[ConstructorName, ConstructorResultName, type]
     ) -> "_Tracing":
         return _Tracing(traces=(*self.traces, trace))
+
+
+def _get_first(iterable):
+    return next(iter(iterable), None)
 
 
 class BlueprintResolver:
@@ -149,10 +154,10 @@ class BlueprintResolver:
         result = self._memo.get(target, None)
         if result is None:
             match mode:
-                case "exhaustive":
+                case "exhaustive" | "unique":
                     result = tuple(self._raw_create_plans(target))
                 case "select_first":
-                    plan = next(iter(self._raw_create_plans(target)), None)
+                    plan = _get_first(self._raw_create_plans(target))
                     if plan is not None:
                         result = (plan,)
                     else:
@@ -179,19 +184,35 @@ class BlueprintResolver:
         if plan.dependencies:
             parameters: list[tuple[str, tuple[Blueprint, ...]]] = []
             for dependency_name, dependency in plan.dependencies:
-                parameters.append(
-                    (
-                        dependency_name,
-                        tuple(
-                            self._resolve(
-                                target=dependency,
-                                name=dependency_name,
-                                mode=mode,
-                                trace=tracing,
-                            )
-                        ),
+                if mode == EXHAUSTIVE:
+                    parameters.append(
+                        (
+                            dependency_name,
+                            tuple(
+                                self._resolve(
+                                    target=dependency,
+                                    name=dependency_name,
+                                    mode=mode,
+                                    trace=tracing,
+                                )
+                            ),
+                        )
                     )
-                )
+                else:
+                    blueprint = _get_first(
+                        self._resolve(
+                            target=dependency,
+                            name=dependency_name,
+                            mode=mode,
+                            trace=tracing,
+                        )
+                    )
+                    parameters.append(
+                        (
+                            dependency_name,
+                            (blueprint,),
+                        )
+                    )
             i = 0
             for parameter_permutation, level in permutate_parameters(
                 parameters

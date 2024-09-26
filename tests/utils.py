@@ -16,18 +16,24 @@ from composify.resolutions import EXHAUSTIVE
 from composify.rules import ConstructRule, RuleRegistry, as_rule
 
 
-def create_resolver(*factories: ConstructorProvider):
-    return BlueprintResolver(providers=factories, default_resolution=EXHAUSTIVE)
+def create_resolver(
+    *factories: ConstructorProvider, default_resolution=EXHAUSTIVE
+):
+    return BlueprintResolver(
+        providers=factories, default_resolution=default_resolution
+    )
 
 
 def create_rule_provider(*rules: ConstructRule):
     return RuleBasedConstructorProvider(
-        RuleRegistry(as_rule(rule) for rule in rules)
+        RuleRegistry(as_rule(rule) for rule in rules),
     )
 
 
-def create_rule_resolver(*rules: ConstructRule):
-    return create_resolver(create_rule_provider(*rules))
+def create_rule_resolver(*rules: ConstructRule, default_resolution=EXHAUSTIVE):
+    return create_resolver(
+        create_rule_provider(*rules), default_resolution=default_resolution
+    )
 
 
 def _format_construction_string(

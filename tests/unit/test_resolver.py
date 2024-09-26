@@ -1,4 +1,6 @@
-from fixture.example_complex_rules import (
+from composify.provider import ContainerInstanceProvider
+from composify.resolutions import UNIQUE
+from tests.example_complex_rules import (
     Param,
     Result,
     create_direct_result,
@@ -7,9 +9,8 @@ from fixture.example_complex_rules import (
     infer_param_1,
     infer_param_2,
     rules,
+    rules_2,
 )
-
-from composify.provider import ContainerInstanceProvider
 from tests.utils import (
     blueprint,
     create_resolver,
@@ -88,5 +89,21 @@ def test_container_resolver(container, container_resolver, compare_blueprints):
         container_resolver.resolve(Param),
         [
             instance(Param, 0),
+        ],
+    )
+
+
+def test_unique_resolver(compare_blueprints):
+    resolver = create_rule_resolver(*rules_2, default_resolution=UNIQUE)
+
+    compare_blueprints(
+        resolver.resolve(Result),
+        [
+            blueprint(create_direct_result, param=blueprint(default_param)),
+            blueprint(
+                create_result,
+                param1=blueprint(infer_param_1, param=blueprint(default_param)),
+                param2=blueprint(infer_param_2, param=blueprint(default_param)),
+            ),
         ],
     )

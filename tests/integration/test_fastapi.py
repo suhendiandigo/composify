@@ -7,12 +7,7 @@ from fastapi import APIRouter
 
 from composify import rule
 from composify.applications import Composify
-from composify.fastapi import (
-    APIRouterCollection,
-    LifespanHook,
-    default_rules,
-    router_rule,
-)
+from composify.fastapi import APIRouterCollection, LifespanHook, default_rules
 from composify.fastapi.lifespan import Lifespan
 from composify.rules import as_rule, collect_rules
 
@@ -22,12 +17,12 @@ class Prefix:
     prefix: str
 
 
-@router_rule
+@rule
 def default_router() -> APIRouter:
     return APIRouter()
 
 
-@router_rule
+@rule
 def example_router(prefix: Prefix) -> APIRouter:
     return APIRouter(prefix=prefix.prefix)
 
@@ -80,7 +75,7 @@ class ExampleLifespan(LifespanHook):
         self.shutdown = True
 
 
-@router_rule
+@rule
 def life_span_router(_: ExampleLifespan) -> APIRouter:
     return APIRouter()
 

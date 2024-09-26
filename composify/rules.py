@@ -95,13 +95,12 @@ def _add_qualifiers(
 
 
 def _get_init_func(cls: type):
-    if cls.__init__ == object.__init__:
+    if cls.__init__ == object.__init__:  # type: ignore[misc]
         func = cls
-        func_params = ()
+        func_params = []
     else:
-        func = cls.__init__
-        func_params = list(inspect.signature(func).parameters)
-        del func_params[0]
+        func = cls.__init__  # type: ignore[misc]
+        func_params = list(inspect.signature(func).parameters)[1:]
     return func, func_params
 
 

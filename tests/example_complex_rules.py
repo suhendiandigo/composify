@@ -52,3 +52,14 @@ def default_param() -> Param:
 
 
 rules = collect_rules()
+
+
+DEFAULT_VALUE_2 = 2
+
+
+@rule
+def default_param_2() -> Param:
+    return Param(DEFAULT_VALUE)
+
+
+rules_2 = collect_rules()

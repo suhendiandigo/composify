@@ -2,9 +2,10 @@
 
 from typing import Literal, TypeAlias
 
-ResolutionMode: TypeAlias = Literal["exhaustive", "select_first"]
+ResolutionMode: TypeAlias = Literal["exhaustive", "select_first", "unique"]
 SELECT_FIRST: ResolutionMode = "select_first"
 EXHAUSTIVE: ResolutionMode = "exhaustive"
-DEFAULT_RESOLUTION_MODE: ResolutionMode = SELECT_FIRST
+UNIQUE: ResolutionMode = "unique"
+DEFAULT_RESOLUTION_MODE: ResolutionMode = UNIQUE
 
-RESOLUTION_MODES = {EXHAUSTIVE, SELECT_FIRST}
+RESOLUTION_MODES = {EXHAUSTIVE, UNIQUE, SELECT_FIRST}

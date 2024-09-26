@@ -43,10 +43,15 @@ from composify import (
     rule,
 )
 from composify.fastapi.lifespan import Lifespan, LifespanHook
-from composify.fastapi.router import APIRouterCollection
 from composify.provider import ConstructorProvider
-from composify.resolutions import EXHAUSTIVE
+from composify.resolutions import SELECT_FIRST, UNIQUE
 from composify.rules import ConstructRule
+
+
+class APIRouterCollection(tuple[APIRouter, ...]):
+    """A collect of declared API routers."""
+
+    pass
 
 
 @rule
@@ -55,7 +60,7 @@ def collect_api_routers(get_or_create: GetOrCreate) -> APIRouterCollection:
 
     This essentially bootstraps the application since these routers are our root nodes.
     """
-    return APIRouterCollection(get_or_create.all(APIRouter, EXHAUSTIVE))
+    return APIRouterCollection(get_or_create.all(APIRouter, UNIQUE))
 
 
 @rule
@@ -95,4 +100,5 @@ def create_app(
     return Composify(
         providers=providers,
         rules=itertools.chain(default_rules, rules),
+        default_resolution=SELECT_FIRST,
     ).get_or_create.one(FastAPI)
