@@ -42,7 +42,7 @@ class AsyncBuilder:
     ) -> None:
         self._cache = {}
         self._save_to = save_to
-        self._threadpool_executor = threadpool_executor or ThreadPoolExecutor()
+        self._threadpool_executor = threadpool_executor
 
     async def get_cached(self, blueprint: Blueprint[T]) -> T | None:
         """Get cached value for a blueprint.
@@ -95,12 +95,15 @@ class AsyncBuilder:
 
         if asyncio.iscoroutinefunction(blueprint.constructor):
             return await blueprint.constructor(**parameters)
-        else:
+        elif self._threadpool_executor is not None:
             loop = asyncio.get_running_loop()
             return await loop.run_in_executor(
                 self._threadpool_executor,
                 partial(blueprint.constructor, **parameters),  # type: ignore[arg-type]
             )
+        return cast(SyncConstructorFunction, blueprint.constructor)(
+            **parameters
+        )
 
 
 class Builder:

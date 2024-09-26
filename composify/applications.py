@@ -3,7 +3,8 @@
 import asyncio
 import itertools
 from collections.abc import Callable, Iterable, Sequence
-from typing import TypeVar
+from concurrent.futures import ThreadPoolExecutor
+from typing import Any, TypeVar
 
 from composify.blueprint import (
     DEFAULT_RESOLUTION_MODE,
@@ -212,17 +213,20 @@ class BaseComposify:
     """Minimalist Composify app class. The main entry point to use Composify.
 
     Example:
+        from composify import BaseComposify
+
         composify = BaseComposify()
 
     """
 
     def __init__(
         self,
-        name: str | None = None,
+        initial: Iterable[Any] = (),
         *,
+        name: str | None = None,
         allows_async: bool,
-        rules: Iterable[ConstructRule] | None = None,
-        providers: Iterable[ConstructorProvider] | None = None,
+        rules: Iterable[ConstructRule] = (),
+        providers: Iterable[ConstructorProvider] = (),
         default_resolution: ResolutionMode = DEFAULT_RESOLUTION_MODE,
     ) -> None:
         # Core components
@@ -240,6 +244,9 @@ class BaseComposify:
         self._container.add(self)
         self._container.add(self._container)
         self._container.add(self._getter)
+
+        for value in initial:
+            self._container.add(value)
 
         # Register user providers and rules
         if providers is not None:
@@ -320,11 +327,18 @@ class _SyncMixin(BaseComposify):
 
 
 class _AsyncMixin(BaseComposify):
-    def __init__(self, *args, **kwargs) -> None:
+    def __init__(
+        self,
+        *args,
+        threadpool_executor: ThreadPoolExecutor | None = None,
+        **kwargs,
+    ) -> None:
         super().__init__(*args, **kwargs)
 
         # Supports for async aget_or_create and async auto-wiring via ainject.
-        self._async_builder = AsyncBuilder(save_to=self._container)
+        self._async_builder = AsyncBuilder(
+            save_to=self._container, threadpool_executor=threadpool_executor
+        )
         self._async_get_or_create = ComposifyAsyncGetOrCreate(
             self._resolver, self._async_builder, self.default_resolution
         )
@@ -354,14 +368,16 @@ class Composify(_SyncMixin):
 
     def __init__(
         self,
-        name: str | None = None,
+        initial: Iterable[Any] = (),
         *,
-        rules: Iterable[ConstructRule] | None = None,
-        providers: Iterable[ConstructorProvider] | None = None,
+        name: str | None = None,
+        rules: Iterable[ConstructRule] = (),
+        providers: Iterable[ConstructorProvider] = (),
         default_resolution: ResolutionMode = DEFAULT_RESOLUTION_MODE,
     ) -> None:
         super().__init__(
-            name,
+            initial,
+            name=name,
             rules=rules,
             providers=providers,
             default_resolution=default_resolution,
@@ -371,24 +387,36 @@ class Composify(_SyncMixin):
 
 class AsyncComposify(_SyncMixin, _AsyncMixin):
     """Composify app class for asyncio support. The main entry point to use Composify.
+    By default, sync @rule are called directly without threadpool executor.
+    To configure Composify to use threadpool, simply include a threadpool_executor parameter.
 
     Example:
-        composify = AsyncComposify()
+        from concurrent.futures import ThreadPoolExecutor
+
+        from composify import AsyncComposify
+
+        composify = AsyncComposify(
+            threadpool_executor=ThreadPoolExecutor()
+        )
 
     """
 
     def __init__(
         self,
-        name: str | None = None,
+        initial: Iterable[Any] = (),
         *,
+        name: str | None = None,
         rules: Iterable[ConstructRule] | None = None,
         providers: Iterable[ConstructorProvider] | None = None,
         default_resolution: ResolutionMode = DEFAULT_RESOLUTION_MODE,
+        threadpool_executor: ThreadPoolExecutor | None = None,
     ) -> None:
         super().__init__(
-            name,
+            initial,
+            name=name,
             rules=rules,
             providers=providers,
             default_resolution=default_resolution,
+            threadpool_executor=threadpool_executor,
             allows_async=True,
         )
