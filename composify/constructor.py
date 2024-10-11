@@ -29,5 +29,6 @@ class Constructor(Generic[T]):
     source: str
     constructor: ConstructorFunction[T]
     is_async: bool
+    is_optional: bool
     output_type: AnnotatedType
     dependencies: ParameterTypes

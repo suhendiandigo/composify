@@ -6,6 +6,7 @@ from collections.abc import Callable, Iterable, Sequence
 from concurrent.futures import ThreadPoolExecutor
 from typing import Any, TypeVar
 
+from composify._helper import ensure_type_annotation
 from composify.blueprint import (
     DEFAULT_RESOLUTION_MODE,
     Blueprint,
@@ -17,6 +18,7 @@ from composify.errors import (
     MultipleResolutionError,
     NoConstructorError,
     NoResolutionError,
+    NoValueError,
     ResolutionFailureError,
 )
 from composify.get import Get
@@ -60,11 +62,24 @@ def _skip_no_constructor_error(
 
 
 def _select_blueprint(type_: AnnotatedType[T], plans: tuple[Blueprint[T], ...]):
-    if len(plans) > 1:
-        raise MultipleResolutionError(type_, plans)
-    elif len(plans) == 0:
+    selected = []
+    is_non_optional_selected = False
+    for plan in plans:
+        if plan.is_optional:
+            if not is_non_optional_selected:
+                selected.append(plan)
+        elif is_non_optional_selected:
+            raise MultipleResolutionError(type_, plans)
+        else:
+            is_non_optional_selected = True
+            selected.append(plan)
+    if len(selected) == 0:
         raise NoResolutionError(type_)
-    return plans[0]
+    return selected
+
+
+def _is_not_none(val: Any) -> bool:
+    return val is not None
 
 
 class ComposifyGetOrCreate(GetOrCreate):
@@ -99,13 +114,23 @@ class ComposifyGetOrCreate(GetOrCreate):
             MultipleResolutionError: If there are multiple possible instances.
             NoResolutionError: If there is no available instance.
         """
-        plan = _select_blueprint(
+        type_info = ensure_type_annotation(
+            type_annotation=type_, name="__input__"
+        )
+        plans = _select_blueprint(
             type_,
             tuple(
                 self._resolver.resolve(type_, self._resolution(resolution_mode))
             ),
         )
-        return self._builder.from_blueprint(plan)
+        result = None
+        for plan in plans:
+            result = self._builder.from_blueprint(plan)
+            if result is not None:
+                break
+        if not type_info.is_optional and result is None:
+            raise NoValueError(type_)
+        return result
 
     def all(
         self,
@@ -133,7 +158,12 @@ class ComposifyGetOrCreate(GetOrCreate):
             if new_exc:
                 raise new_exc from exc
             return ()
-        return tuple(self._builder.from_blueprint(plan) for plan in plans)
+        return tuple(
+            filter(
+                _is_not_none,
+                (self._builder.from_blueprint(plan) for plan in plans),
+            )
+        )
 
 
 class ComposifyAsyncGetOrCreate(AsyncGetOrCreate):
@@ -168,13 +198,23 @@ class ComposifyAsyncGetOrCreate(AsyncGetOrCreate):
             MultipleResolutionError: If there are multiple possible instances.
             NoResolutionError: If there is no available instance.
         """
-        plan = _select_blueprint(
+        type_info = ensure_type_annotation(
+            type_annotation=type_, name="__input__"
+        )
+        plans = _select_blueprint(
             type_,
             tuple(
                 self._resolver.resolve(type_, self._resolution(resolution_mode))
             ),
         )
-        return await self._builder.from_blueprint(plan)
+        result = None
+        for plan in plans:
+            result = await self._builder.from_blueprint(plan)
+            if result is not None:
+                break
+        if not type_info.is_optional and result is None:
+            raise NoValueError(type_)
+        return result
 
     async def all(
         self,
@@ -203,8 +243,11 @@ class ComposifyAsyncGetOrCreate(AsyncGetOrCreate):
                 raise new_exc from exc
             return ()
         return tuple(
-            await asyncio.gather(
-                *(self._builder.from_blueprint(plan) for plan in plans)
+            filter(
+                _is_not_none,
+                await asyncio.gather(
+                    *(self._builder.from_blueprint(plan) for plan in plans)
+                ),
             )
         )
 

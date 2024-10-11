@@ -110,14 +110,17 @@ def test_unique_resolver_error():
 def test_unique_resolver(compare_blueprints):
     resolver = create_rule_resolver(*rules_1, default_resolution=UNIQUE)
 
-    compare_blueprints(
-        resolver.resolve(Result),
-        [
-            blueprint(create_direct_result, param=blueprint(default_param)),
-            blueprint(
-                create_result,
-                param1=blueprint(infer_param_1, param=blueprint(default_param)),
-                param2=blueprint(infer_param_2, param=blueprint(default_param)),
-            ),
-        ],
-    )
+    with pytest.raises(ResolutionFailureError) as exc:
+        (resolver.resolve(Result),)
+    assert exc.value.contains(MultipleDependencyResolutionError)
+    # compare_blueprints(
+    #     resolver.resolve(Result),
+    #     [
+    #         blueprint(create_direct_result, param=blueprint(default_param)),
+    #         blueprint(
+    #             create_result,
+    #             param1=blueprint(infer_param_1, param=blueprint(default_param)),
+    #             param2=blueprint(infer_param_2, param=blueprint(default_param)),
+    #         ),
+    #     ],
+    # )

@@ -260,7 +260,19 @@ class BuilderError(Exception):
     pass
 
 
-class AsyncBlueprintError(Exception):
+class AsyncBlueprintError(BuilderError):
     """Raised when trying to create an async blueprint using sync Builder."""
+
+    pass
+
+
+class NonOptionalBuilderMismatchError(BuilderError):
+    """Raised when a builder resulted in None value for non optional blueprint."""
+
+    pass
+
+
+class NoValueError(BuilderError):
+    """Raised when a series of optional blueprints do not return any value."""
 
     pass

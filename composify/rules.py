@@ -44,7 +44,7 @@ from composify.errors import (
 )
 from composify.metadata import AttributeSet, collect_attributes
 from composify.metadata.qualifiers import BaseQualifierMetadata
-from composify.types import AnnotatedType, get_type
+from composify.types import AnnotatedType
 
 __all__ = ["rule", "as_rule"]
 
@@ -75,6 +75,7 @@ class ConstructRule(Entry, Generic[T]):
     parameter_types: ParameterTypes
     attributes: AttributeSet
     priority: int
+    is_optional: bool
 
     @property
     def key(self) -> Key:
@@ -124,8 +125,9 @@ def _rule_decorator(
         name=f"{func_id} return",
         raise_type=MissingReturnTypeAnnotation,
     )
+    is_optional = return_type.is_optional
     metadata = collect_attributes(return_type)
-    return_type = get_type(return_type)
+    return_type = return_type.inner_type
 
     parameter_types: tuple[tuple[str, AnnotatedType], ...] = tuple(
         (
@@ -135,7 +137,7 @@ def _rule_decorator(
                     type_annotation=type_hints.get(parameter),
                     name=f"{func_id} parameter {parameter}",
                     raise_type=MissingParameterTypeAnnotation,
-                ),
+                ).annotation,
                 dependency_qualifiers,
             ),
         )
@@ -151,6 +153,7 @@ def _rule_decorator(
         attributes=metadata,
         parameter_types=parameter_types,
         priority=priority,
+        is_optional=is_optional,
     )
     setattr(
         decorated,

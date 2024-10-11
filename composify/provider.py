@@ -89,6 +89,7 @@ class ContainerInstanceProvider(ConstructorProvider):
                 is_async=False,
                 output_type=type_,
                 dependencies=(),
+                is_optional=False,
             )
         except InstanceNotFoundError:
             pass
@@ -126,4 +127,5 @@ class RuleBasedConstructorProvider(ConstructorProvider):
                 is_async=rule.is_async,
                 output_type=type_,
                 dependencies=rule.parameter_types,
+                is_optional=rule.is_optional,
             )

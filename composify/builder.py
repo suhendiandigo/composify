@@ -8,7 +8,10 @@ from typing import Annotated, Any, Protocol, TypeVar, cast
 from composify.attributes import ProvidedBy
 from composify.blueprint import Blueprint
 from composify.constructor import SyncConstructorFunction
-from composify.errors import AsyncBlueprintError
+from composify.errors import (
+    AsyncBlueprintError,
+    NonOptionalBuilderMismatchError,
+)
 
 __all__ = [
     "AsyncBuilder",
@@ -94,16 +97,22 @@ class AsyncBuilder:
         parameters = dict(zip(names, results, strict=True))
 
         if asyncio.iscoroutinefunction(blueprint.constructor):
-            return await blueprint.constructor(**parameters)
+            value = await blueprint.constructor(**parameters)
         elif self._threadpool_executor is not None:
             loop = asyncio.get_running_loop()
-            return await loop.run_in_executor(
+            value = await loop.run_in_executor(
                 self._threadpool_executor,
                 partial(blueprint.constructor, **parameters),  # type: ignore[arg-type]
             )
-        return cast(SyncConstructorFunction, blueprint.constructor)(
-            **parameters
-        )
+        else:
+            value = cast(SyncConstructorFunction, blueprint.constructor)(
+                **parameters
+            )
+
+        if value is None and not blueprint.is_optional:
+            raise NonOptionalBuilderMismatchError(blueprint)
+
+        return value
 
 
 class Builder:
@@ -152,6 +161,11 @@ class Builder:
             for name, param in blueprint.dependencies
         }
 
-        return cast(SyncConstructorFunction, blueprint.constructor)(
+        value = cast(SyncConstructorFunction, blueprint.constructor)(
             **parameters
         )
+
+        if value is None and not blueprint.is_optional:
+            raise NonOptionalBuilderMismatchError(blueprint)
+
+        return value

@@ -46,6 +46,7 @@ class Blueprint(Generic[T]):
     output_type: AnnotatedType[T] = field(hash=False, compare=False)
     dependencies: frozenset[tuple[str, "Blueprint"]]
     priority: tuple[int, ...] = field(hash=False, compare=False)
+    is_optional: bool = field(hash=False, compare=False)
 
 
 _Parameter: TypeAlias = tuple[str, Blueprint]
@@ -186,7 +187,8 @@ class BlueprintResolver:
                 trace=trace,
             )
         )
-        if len(resolved) > 1:
+        non_optional_count = sum(0 if bp.is_optional else 1 for bp in resolved)
+        if non_optional_count > 1:
             raise MultipleDependencyResolutionError(
                 target,
                 tuple(blueprint.source for blueprint in resolved),
@@ -265,6 +267,7 @@ class BlueprintResolver:
                     output_type=plan.output_type,
                     dependencies=frozenset(parameter_permutation),
                     priority=(level, plan_order, i),
+                    is_optional=plan.is_optional,
                 )
                 i += 1
         else:
@@ -275,6 +278,7 @@ class BlueprintResolver:
                 output_type=plan.output_type,
                 dependencies=frozenset(),
                 priority=(0, plan_order),
+                is_optional=plan.is_optional,
             )
 
     def _resolve(
@@ -315,6 +319,18 @@ class BlueprintResolver:
             raise ResolutionFailureError(target, trace.traces, errors)
         yield from constructions
 
+    def _select_resolver(self, mode: ResolutionMode | None):
+        match mode:
+            case "unique":
+                resolve = self._resolve_unique
+            case "exhaustive":
+                resolve = partial(self._resolve, mode=EXHAUSTIVE)
+            case "select_first":
+                resolve = self._resolve_first
+            case _:
+                raise InvalidResolutionModeError(mode)
+        return resolve
+
     def resolve(
         self,
         target: AnnotatedType[T],
@@ -338,10 +354,9 @@ class BlueprintResolver:
             raise InvalidResolutionModeError(mode)
         tracing = _Tracing(())
         try:
+            resolve = self._select_resolver(mode)
             return sorted(
-                self._resolve(
-                    target=target, name="__root__", mode=mode, trace=tracing
-                ),
+                resolve(target=target, name="__root__", trace=tracing),
                 key=lambda x: x.priority,
             )
         except (

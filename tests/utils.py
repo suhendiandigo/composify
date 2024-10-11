@@ -1,4 +1,5 @@
 import asyncio
+from functools import wraps
 from typing import Any
 
 from composify._helper import resolve_type_name
@@ -68,6 +69,7 @@ def blueprint(
         output_type=type,  # Not used for building
         dependencies=frozenset(dependencies.items()),
         priority=tuple(),  # Not used for building
+        is_optional=False,
     )
 
 
@@ -81,6 +83,7 @@ def static(
         output_type=type,  # Not used for building
         dependencies=frozenset(),
         priority=tuple(),  # Not used for building
+        is_optional=False,
     )
 
 
@@ -106,6 +109,7 @@ def instance(
         output_type=type,  # Not used for building
         dependencies=frozenset(),
         priority=tuple(),  # Not used for building
+        is_optional=False,
     )
 
 
@@ -129,3 +133,16 @@ def _find_difference(
 
 def find_difference(result: Blueprint, expected: Blueprint) -> tuple | None:
     return _find_difference(result, expected, tuple())
+
+
+class ExecutionCounter:
+    def __init__(self) -> None:
+        self.execution = 0
+
+    def __call__(self, f):
+        @wraps(f)
+        def wrapper(*args, **kwargs):
+            self.execution += 1
+            return f(*args, **kwargs)
+
+        return wrapper

@@ -36,7 +36,7 @@ def _resolve_parameters(
                 type_annotation=type_hints.get(parameter),
                 name=f"{func_id} parameter {parameter}",
                 raise_type=MissingParameterTypeAnnotation,
-            ),
+            ).annotation,
         )
         for parameter in parameters_to_inject
     )

@@ -43,4 +43,5 @@ class PydanticSettingsProvider(ConstructorProvider):
                 is_async=False,
                 output_type=type_,
                 dependencies=(),
+                is_optional=False,
             )
