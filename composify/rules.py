@@ -141,7 +141,7 @@ def _rule_decorator(
         )
         for parameter in func_params
     )
-    effective_name = resolve_type_name(func)
+    effective_name = resolve_type_name(decorated)
 
     rule: ConstructRule = ConstructRule(
         decorated,

@@ -178,18 +178,21 @@ class BlueprintResolver:
         name: str,
         trace: _Tracing,
     ):
-        resolved: Iterable = self._resolve(
-            target=target,
-            name=name,
-            mode=UNIQUE,
-            trace=trace,
+        resolved: Iterable = tuple(
+            self._resolve(
+                target=target,
+                name=name,
+                mode=UNIQUE,
+                trace=trace,
+            )
         )
-        iterator = iter(resolved)
-        first = next(iterator)
-        second = next(iterator, None)
-        if second is not None:
-            raise MultipleDependencyResolutionError(target, trace.traces)
-        return (first,)
+        if len(resolved) > 1:
+            raise MultipleDependencyResolutionError(
+                target,
+                tuple(blueprint.source for blueprint in resolved),
+                trace.traces,
+            )
+        return resolved
 
     def _resolve_first(
         self,

@@ -1,9 +1,7 @@
-# Composify
-
 [![CI](https://img.shields.io/github/actions/workflow/status/suhendiandigo/composify/ci.yaml?branch=main&logo=github&label=CI)](https://github.com/suhendiandigo/composify/actions?query=event%3Apush+branch%3Amain+workflow%3ACI)
 [![license](https://img.shields.io/github/license/suhendiandigo/composify.svg)](https://github.com/suhendiandigo/composify/blob/main/LICENSE)
 
-**Composify** is a Python framework designed to simplify the development of **declarative applications**. By using **rule declarations** and **dependency injection**, Composify enables clean, maintainable, and scalable application architectures.
+**Composify** is a Python framework designed to simplify the development of applications. By using **rule declarations** and **dependency injection**, Composify enables clean and maintainable application structures.
 
 Components and their relationships are declared upfront via the `@rule` decorator. The framework automatically builds a dependency graph and instantiates only the necessary components at runtime, handling dependency injection for you.
 
@@ -66,13 +64,3 @@ print(b)
 ## Planned features
 - **Static code generator**: Resolve dependencies at build time and generate Python code for faster bootstrapping. This would eliminate the overhead of dynamic resolution.
 - **Optimization for core logic**: Reimplement the core resolver in a more efficient language, such as Rust, to improve performance.
-
-
-## Contributions
-
-All forms of contributions are welcome, from feedback on the core API to feature requests and code contributions. Feel free to check out the [issues](https://github.com/suhendiandigo/composify/issues) page or open a pull request. 
-
-## License
-
-This project is licensed under the MIT License. See the [LICENSE](LICENSE) file for more details.
-

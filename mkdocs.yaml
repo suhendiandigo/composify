@@ -70,14 +70,15 @@ nav:
   - Installation: install.md
   - Contributing: contributing.md
   - Changelog: changelog.md
-- Learn:
-  - Core Concepts:
-    - Rules: concepts/rules.md
-    - Containers: concepts/containers.md
-    - Providers: concepts/providers.md
-    - Dependency Resolver: concepts/resolver.md
-    - Builder: concepts/builder.md
-    - Dependency Injection: concepts/dependency_injection.md
+- Tutorial:
+  - Overview: tutorial/overview.md
+- Core Concepts:
+  - Rules: concepts/rules.md
+  - Containers: concepts/containers.md
+  - Providers: concepts/providers.md
+  - Dependency Resolver: concepts/resolver.md
+  - Builder: concepts/builder.md
+  - Dependency Injection: concepts/dependency_injection.md
 - Integrations:
   - Web Framework:
     - FastAPI: integrations/fastapi.md
@@ -89,10 +90,14 @@ markdown_extensions:
     title: Page contents
 - admonition
 - pymdownx.details
-- pymdownx.superfences
 - pymdownx.highlight:
     pygments_lang_class: true
-- pymdownx.extra
+- pymdownx.extra:
+    pymdownx.superfences:
+      custom_fences:
+        - name: mermaid
+          class: mermaid
+          format: !!python/name:pymdownx.superfences.fence_code_format
 - pymdownx.emoji:
     emoji_index: !!python/name:material.extensions.emoji.twemoji
     emoji_generator: !!python/name:material.extensions.emoji.to_svg

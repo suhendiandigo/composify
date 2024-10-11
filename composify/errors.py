@@ -134,11 +134,14 @@ class CyclicDependencyError(TracedTypeConstructionResolutionError):
 class MultipleDependencyResolutionError(TracedTypeConstructionResolutionError):
     """Raised when a dependency contains multiple resolutions in UNIQUE resolution mode."""
 
-    def __init__(self, type_: type, traces: Traces) -> None:
+    def __init__(
+        self, type_: type, solutions: Sequence[str], traces: Traces
+    ) -> None:
+        self.solutions = solutions
         super().__init__(
             type_,
             traces,
-            f"Multiple dependency resolutions found for {type_!r}",
+            f"Multiple dependency resolutions found for {type_!r}: {', '.join(solutions)}",
         )
 
 
