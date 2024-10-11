@@ -10,6 +10,7 @@ from typing import Any, TypeVar
 from composify.blueprint import (
     DEFAULT_RESOLUTION_MODE,
     Blueprint,
+    BlueprintGrouper,
     BlueprintResolver,
 )
 from composify.builder import AsyncBuilder, Builder
@@ -33,6 +34,7 @@ from composify.provider import (
     ContainerInstanceProvider,
     RuleBasedConstructorProvider,
 )
+from composify.resolutions import EXHAUSTIVE, join_resolution
 from composify.rules import ConstructRule, RuleRegistry, as_rule
 from composify.types import AnnotatedType
 
@@ -142,17 +144,7 @@ class ComposifyGetOrCreate(GetOrCreate):
                 self._resolver.resolve(type_, self._resolution(resolution_mode))
             ),
         )
-        result = None
-        for plan in plans:
-            try:
-                result = self._builder.from_blueprint(plan)
-                if result is not None:
-                    break
-            except NoValueError:
-                pass
-        if result is None:
-            raise NoValueError(type_)
-        return result
+        return self._create_one_in_group(type_, plans)
 
     def all(
         self,
@@ -171,9 +163,12 @@ class ComposifyGetOrCreate(GetOrCreate):
         Raises:
             InvalidResolutionModeError: Raised if the resolution mode is invalid.
         """
+        resolution_mode = self._resolution(resolution_mode)
         try:
             plans = tuple(  # type: ignore[var-annotated]
-                self._resolver.resolve(type_, self._resolution(resolution_mode))
+                self._resolver.resolve(
+                    type_, join_resolution(EXHAUSTIVE, resolution_mode)
+                )
             )
         except ResolutionFailureError as exc:
             new_exc = _skip_no_constructor_error(exc)
@@ -184,11 +179,26 @@ class ComposifyGetOrCreate(GetOrCreate):
             filter(
                 _is_not_none,
                 (
-                    _skip_no_value_error(self._builder.from_blueprint)(plan)
-                    for plan in plans
+                    self._create_one_in_group(type_, tuple(group))
+                    for group in BlueprintGrouper(plans)
                 ),
             )
         )
+
+    def _create_one_in_group(
+        self, type_: AnnotatedType[T], plans: Iterable[Blueprint[T]]
+    ) -> T:
+        result = None
+        for plan in plans:
+            try:
+                result = self._builder.from_blueprint(plan)
+                if result is not None:
+                    break
+            except NoValueError:
+                pass
+        if result is None:
+            raise NoValueError(type_)
+        return result
 
 
 class ComposifyAsyncGetOrCreate(AsyncGetOrCreate):
@@ -229,17 +239,7 @@ class ComposifyAsyncGetOrCreate(AsyncGetOrCreate):
                 self._resolver.resolve(type_, self._resolution(resolution_mode))
             ),
         )
-        result = None
-        for plan in plans:
-            try:
-                result = await self._builder.from_blueprint(plan)
-                if result is not None:
-                    break
-            except NoValueError:
-                pass
-        if result is None:
-            raise NoValueError(type_)
-        return result
+        return await self._create_one_in_group(type_, plans)
 
     async def all(
         self,
@@ -258,9 +258,12 @@ class ComposifyAsyncGetOrCreate(AsyncGetOrCreate):
         Raises:
             InvalidResolutionModeError: Raised if the resolution mode is invalid.
         """
+        resolution_mode = self._resolution(resolution_mode)
         try:
             plans = tuple(  # type: ignore[var-annotated]
-                self._resolver.resolve(type_, self._resolution(resolution_mode))
+                self._resolver.resolve(
+                    type_, join_resolution(EXHAUSTIVE, resolution_mode)
+                )
             )
         except ResolutionFailureError as exc:
             new_exc = _skip_no_constructor_error(exc)
@@ -272,14 +275,27 @@ class ComposifyAsyncGetOrCreate(AsyncGetOrCreate):
                 _is_not_none,
                 await asyncio.gather(
                     *(
-                        _async_skip_no_value_error(
-                            self._builder.from_blueprint
-                        )(plan)
-                        for plan in plans
+                        self._create_one_in_group(type_, tuple(group))
+                        for group in BlueprintGrouper(plans)
                     )
                 ),
             )
         )
+
+    async def _create_one_in_group(
+        self, type_: AnnotatedType[T], plans: Blueprint[T]
+    ) -> T | None:
+        result = None
+        for plan in plans:
+            try:
+                result = await self._builder.from_blueprint(plan)
+                if result is not None:
+                    break
+            except NoValueError:
+                pass
+        if result is None:
+            raise NoValueError(type_)
+        return result
 
 
 class BaseComposify:

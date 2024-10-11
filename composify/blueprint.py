@@ -1,5 +1,6 @@
 """This module contains implementation for Blueprint."""
 
+import itertools
 from collections.abc import Iterable, Sequence
 from dataclasses import dataclass, field
 from typing import Annotated, Generic, TypeAlias, TypeVar
@@ -167,6 +168,7 @@ class BlueprintResolver:
         name: str,
         mode: ResolutionMode,
         trace: _Tracing,
+        priority: tuple[int, ...],
     ):
         resolved: Iterable = tuple(
             self._resolve_exhaustive(
@@ -174,6 +176,7 @@ class BlueprintResolver:
                 name=name,
                 mode=mode,
                 trace=trace,
+                priority=priority,
             )
         )
         non_optional_count = sum(
@@ -185,7 +188,10 @@ class BlueprintResolver:
                 tuple(blueprint.source for blueprint in resolved),
                 trace.traces,
             )
-        return resolved
+        for bp in resolved:
+            yield bp
+            if not bp.is_optional:
+                return
 
     def _resolve_first(
         self,
@@ -193,6 +199,7 @@ class BlueprintResolver:
         name: str,
         mode: ResolutionMode,
         trace: _Tracing,
+        priority: tuple[int, ...],
     ):
         resolved: Iterable = tuple(
             self._resolve_exhaustive(
@@ -200,6 +207,7 @@ class BlueprintResolver:
                 name=name,
                 mode=mode,
                 trace=trace,
+                priority=priority,
             )
         )
         for bp in resolved:
@@ -213,6 +221,7 @@ class BlueprintResolver:
         name: str,
         mode: ResolutionMode,
         trace: _Tracing,
+        priority: tuple[int, ...],
     ) -> Iterable[Blueprint[T]]:
         plans = self._create_plans(target, mode)
         if not plans:
@@ -229,6 +238,7 @@ class BlueprintResolver:
                         plan_order=plan_order,
                         mode=mode,
                         trace=trace,
+                        priority=priority,
                     )
                 )
             except (NoConstructorError, CyclicDependencyError) as exc:
@@ -247,6 +257,7 @@ class BlueprintResolver:
         plan_order: int,
         mode: ResolutionMode,
         trace: _Tracing,
+        priority: tuple[int, ...],
     ) -> Iterable[Blueprint[T]]:
         curr_trace = plan.source, name, target
         tracing = trace.chain(curr_trace)
@@ -264,14 +275,13 @@ class BlueprintResolver:
                                 name=dependency_name,
                                 mode=mode,
                                 trace=tracing,
+                                priority=priority,
                             )
                         ),
                     )
                 )
             i = 0
-            for parameter_permutation, level in permutate_parameters(
-                parameters
-            ):
+            for parameter_permutation, _ in permutate_parameters(parameters):
                 yield Blueprint(
                     source=plan.source,
                     constructor=plan.constructor,
@@ -287,7 +297,7 @@ class BlueprintResolver:
                     ),
                     output_type=plan.output_type,
                     dependencies=frozenset(parameter_permutation),
-                    priority=(level, plan_order, i),
+                    priority=priority + (plan_order, i),
                     is_optional=plan.is_optional
                     or any(
                         parameter.is_optional
@@ -302,7 +312,7 @@ class BlueprintResolver:
                 is_async=plan.is_async,
                 output_type=plan.output_type,
                 dependencies=frozenset(),
-                priority=(0, plan_order),
+                priority=priority + (plan_order, 0),
                 is_optional=plan.is_optional,
             )
 
@@ -324,6 +334,7 @@ class BlueprintResolver:
         name: str,
         mode: ResolutionMode,
         trace: _Tracing,
+        priority: tuple[int, ...],
     ) -> Iterable[Blueprint[T]]:
         mode, next_modes = split_resolution(mode)
         qualifiers = collect_qualifiers(target)
@@ -333,7 +344,9 @@ class BlueprintResolver:
         else:
             type_ = Annotated[type_, Resolution(mode)]  # type: ignore[assignment]
         resolve = self._select_resolver(mode)
-        return resolve(type_, name=name, mode=next_modes, trace=trace)
+        return resolve(
+            type_, name=name, mode=next_modes, trace=trace, priority=priority
+        )
 
     def resolve(
         self,
@@ -360,7 +373,11 @@ class BlueprintResolver:
         try:
             return sorted(
                 self._resolve(
-                    target=target, name="__root__", mode=mode, trace=tracing
+                    target=target,
+                    name="__root__",
+                    mode=mode,
+                    trace=tracing,
+                    priority=(),
                 ),
                 key=lambda x: x.priority,
             )
@@ -370,3 +387,28 @@ class BlueprintResolver:
             MultipleDependencyResolutionError,
         ) as exc:
             raise ResolutionFailureError(target, tracing.traces, [exc]) from exc
+
+
+def _group_key(level: int):
+    slice_end = level + 1
+
+    def key(bp: Blueprint):
+        return bp.priority[:slice_end]
+
+    return key
+
+
+class BlueprintGrouper(Generic[T]):
+    def __init__(
+        self, blueprints: Iterable[Blueprint[T]], level: int | None = 0
+    ):
+        self._blueprints = tuple(blueprints)
+        self._key = _group_key(level) if level is not None else None
+
+    def __iter__(self):
+        if self._key is None:
+            for bp in self._blueprints:
+                yield (bp,)
+        else:
+            for _, group in itertools.groupby(self._blueprints, key=self._key):
+                yield group

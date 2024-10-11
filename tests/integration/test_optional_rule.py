@@ -171,3 +171,34 @@ def test_select_first():
 
     result = get_or_create.one(Service, SELECT_FIRST)
     assert result.value == 10
+
+
+def test_select_all_unique():
+    resolver = create_rule_resolver(
+        no_param,
+        example_param,
+        example_not_optional_rule,
+        create_service,
+    )
+    builder = Builder()
+
+    get_or_create = ComposifyGetOrCreate(resolver, builder, UNIQUE)
+
+    result = get_or_create.all(Service)
+    assert len(result) == 1
+
+
+def test_select_all_first():
+    resolver = create_rule_resolver(
+        no_param,
+        example_param,
+        example_param_0,
+        example_not_optional_rule,
+        create_service,
+    )
+    builder = Builder()
+
+    get_or_create = ComposifyGetOrCreate(resolver, builder, SELECT_FIRST)
+
+    result = get_or_create.all(Service)
+    assert len(result) == 1

@@ -63,3 +63,24 @@ def split_resolution(
     elif len(resolution) < 0:
         raise ValueError("Empty sequence for resolution mode.")
     return resolution[0], resolution[0]
+
+
+def join_resolution(
+    resolution1: ResolutionMode, resolution2: ResolutionMode
+) -> ResolutionMode:
+    """Join 2 resolutions into a single resolution.
+
+    Args:
+        resolution1 (ResolutionMode): The header of the resolution.
+        resolution2 (ResolutionMode): The tail of the resolution.
+
+    Returns:
+        ResolutionMode: A single joined resolution.
+    """
+    if isinstance(resolution1, str) and isinstance(resolution2, str):
+        return (resolution1, resolution2)
+    elif isinstance(resolution1, str) and not isinstance(resolution2, str):
+        return (resolution1, *resolution2)
+    elif not isinstance(resolution1, str) and isinstance(resolution2, str):
+        return (*resolution1, resolution2)
+    return resolution1 + resolution2

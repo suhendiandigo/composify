@@ -86,7 +86,7 @@ class AsyncBuilder:
 
         value = await task
 
-        if self._save_to is not None:
+        if value is not None and self._save_to is not None:
             self._save_to[_set_provider(value, blueprint.source)] = value
         return value
 
@@ -163,7 +163,7 @@ class Builder:
 
         self._cache[blueprint] = value
 
-        if self._save_to is not None:
+        if value is not None and self._save_to is not None:
             self._save_to[_set_provider(value, blueprint.source)] = value
         return value
 
