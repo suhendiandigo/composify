@@ -3,6 +3,8 @@
 from collections.abc import Iterable, Sequence
 from typing import Any, TypeAlias
 
+from .resolutions import ResolutionMode
+
 
 class ResolverError(Exception):
     """Base class for all resolution errors."""
@@ -13,7 +15,7 @@ class ResolverError(Exception):
 class InvalidResolutionModeError(ResolverError):
     """Raised for invalid resolution mode."""
 
-    def __init__(self, mode: str) -> None:
+    def __init__(self, mode: ResolutionMode) -> None:
         self.mode = mode
         super().__init__(
             f"Invalid resolution mode {mode!r}",

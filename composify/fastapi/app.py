@@ -123,7 +123,7 @@ def create_app(
     all_rules = tuple(itertools.chain(default_rules, rules))
 
     if not _has_fastapi_rule(all_rules):
-        all_rules += (as_rule(__create_default_composify_fastapi),)
+        all_rules = all_rules + (as_rule(__create_default_composify_fastapi),)
 
     return Composify(
         providers=providers,

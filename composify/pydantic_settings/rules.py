@@ -18,19 +18,21 @@ class SettingsEnvSource:
     env_file: DotenvType
 
 
-T = TypeVar("T", bound=type[BaseSettings])
+T = TypeVar("T", bound=BaseSettings)
 
 
-def _wrapper(cls: T, *, is_optional: bool):
+def _wrapper(cls: type[T], *, is_optional: bool):
     if is_optional:
 
-        def create_settings() -> T | None:
+        def create_settings_optional() -> T | None:
             try:
                 return cls()
             except ValidationError:
                 return None
 
-        def create_settings_from_env(env: SettingsEnvSource) -> T | None:
+        def create_settings_optional_from_env(
+            env: SettingsEnvSource,
+        ) -> T | None:
             try:
                 return cls(_env_file=env.env_file)
             except ValidationError:
@@ -41,14 +43,14 @@ def _wrapper(cls: T, *, is_optional: bool):
             ConstructRuleSet(
                 (
                     rule(
-                        create_settings_from_env,
+                        create_settings_optional_from_env,
                         priority=0,
                         name=f"optional_create_{cls.__module__}.{cls.__name__}_from_env",
                         return_type=cls,
                         is_optional=True,
                     ),
                     rule(
-                        create_settings,
+                        create_settings_optional,
                         priority=-1,
                         name=f"optional_create_{cls.__module__}.{cls.__name__}",
                         return_type=cls,
@@ -88,7 +90,7 @@ def _wrapper(cls: T, *, is_optional: bool):
     return cls
 
 
-def settings_rule(cls: T | None = None, *, is_optional: bool = False) -> T:
+def settings_rule(cls: type[T] | None = None, *, is_optional: bool = False):
     """Create a rule to automatically create an instance of the base settings type.
 
     Args:

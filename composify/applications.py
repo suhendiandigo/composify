@@ -283,8 +283,8 @@ class ComposifyAsyncGetOrCreate(AsyncGetOrCreate):
         )
 
     async def _create_one_in_group(
-        self, type_: AnnotatedType[T], plans: Blueprint[T]
-    ) -> T | None:
+        self, type_: AnnotatedType[T], plans: Iterable[Blueprint[T]]
+    ) -> T:
         result = None
         for plan in plans:
             try:

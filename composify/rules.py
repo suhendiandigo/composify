@@ -46,7 +46,7 @@ from composify.metadata import AttributeSet, collect_attributes
 from composify.metadata.qualifiers import BaseQualifierMetadata
 from composify.types import AnnotatedType
 
-__all__ = ["rule", "as_rule"]
+__all__ = ("rule", "as_rule")
 
 
 T = TypeVar("T")
@@ -230,7 +230,7 @@ def rule(
     )
 
 
-def as_rule(f: Any) -> ConstructRule | None:
+def as_rule(f: Any) -> ConstructRule:
     """Returns the ConstructRule associated with the object.
 
     Args:
@@ -241,7 +241,10 @@ def as_rule(f: Any) -> ConstructRule | None:
     """
     if isinstance(f, ConstructRule):
         return f
-    return getattr(f, RULE_ATTR, None)
+    r = getattr(f, RULE_ATTR, None)
+    if r is None:
+        raise TypeError(f"{f} is not a rule.")
+    return r
 
 
 def _extract_rules(rule: ConstructRule | ConstructRuleSet):

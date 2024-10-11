@@ -30,7 +30,7 @@ def ensure_type_annotation(
     inner_type = type_annotation
     is_optional = False
     is_annotated = False
-    metadata = []
+    metadata: list = []
     while not isinstance(inner_type, type):
         origin = get_origin(inner_type)
         if origin is UnionType:

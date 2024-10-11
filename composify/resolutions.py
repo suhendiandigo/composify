@@ -4,13 +4,14 @@ from collections.abc import Sequence
 from typing import Any, Literal, TypeAlias
 
 ResolutionType: TypeAlias = Literal["exhaustive", "select_first", "unique"]
-ResolutionMode: TypeAlias = ResolutionType | Sequence[ResolutionType]
-SELECT_FIRST: ResolutionMode = "select_first"
-EXHAUSTIVE: ResolutionMode = "exhaustive"
-UNIQUE: ResolutionMode = "unique"
-DEFAULT_RESOLUTION_MODE: ResolutionMode = UNIQUE
+SELECT_FIRST: ResolutionType = "select_first"
+EXHAUSTIVE: ResolutionType = "exhaustive"
+UNIQUE: ResolutionType = "unique"
 
 RESOLUTION_TYPES = {EXHAUSTIVE, UNIQUE, SELECT_FIRST}
+
+ResolutionMode: TypeAlias = ResolutionType | Sequence[ResolutionType]
+DEFAULT_RESOLUTION_MODE: ResolutionMode = UNIQUE
 
 
 def is_resolution_type(val: Any) -> bool:
@@ -58,7 +59,7 @@ def split_resolution(
     if len(resolution) > 1:
         other = resolution[1:]
         if len(other) == 1:
-            other = other[0]
+            return resolution[0], other[0]
         return resolution[0], other
     elif len(resolution) < 0:
         raise ValueError("Empty sequence for resolution mode.")
@@ -79,8 +80,8 @@ def join_resolution(
     """
     if isinstance(resolution1, str) and isinstance(resolution2, str):
         return (resolution1, resolution2)
-    elif isinstance(resolution1, str) and not isinstance(resolution2, str):
+    elif isinstance(resolution1, str) and isinstance(resolution2, Sequence):
         return (resolution1, *resolution2)
-    elif not isinstance(resolution1, str) and isinstance(resolution2, str):
+    elif isinstance(resolution1, Sequence) and isinstance(resolution2, str):
         return (*resolution1, resolution2)
-    return resolution1 + resolution2
+    return (*resolution1, *resolution2)
