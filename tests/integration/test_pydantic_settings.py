@@ -1,15 +1,20 @@
 from pydantic_settings import BaseSettings
 
 from composify.applications import Composify
-from composify.pydantic_settings import PydanticSettingsProvider
+from composify.pydantic_settings import settings_rule
+from composify.rules import collect_rules
 
 
+@settings_rule
 class ExampleSettings(BaseSettings, frozen=True):
     value: int = 5
 
 
+rules = collect_rules()
+
+
 def test_request_setting():
-    composify = Composify(providers=[PydanticSettingsProvider()])
+    composify = Composify(rules=rules)
 
     settings = composify.get_or_create.one(ExampleSettings)
 
