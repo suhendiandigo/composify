@@ -86,6 +86,10 @@ class ConstructRule(Entry, Generic[T]):
         return self.canonical_name
 
 
+class ConstructRuleSet(tuple[ConstructRule, ...]):
+    pass
+
+
 def _add_qualifiers(
     type_: AnnotatedType[T], qualifiers: Iterable[BaseQualifierMetadata] | None
 ) -> AnnotatedType[T]:
@@ -105,29 +109,48 @@ def _get_init_func(cls: type):
     return func, func_params
 
 
+def attach_rule(value: Any, rule: ConstructRule | ConstructRuleSet) -> None:
+    """Attach a rule to an object that is collectible via collect_rules().
+    To be used with custom rule decorators.
+
+    Args:
+        value (Any): The object to attach the rule to.
+        rule (ConstructRule | ConstructRuleSet): The rule to attach.
+    """
+    setattr(
+        value,
+        RULE_ATTR,
+        rule,
+    )
+
+
 def _rule_decorator(
     decorated: F,
     *,
     priority: int,
+    name: str | None = None,
     dependency_qualifiers: Iterable[BaseQualifierMetadata] | None = None,
+    return_type: type | None = None,
+    is_optional: bool | None = None,
 ) -> F:
     if inspect.isclass(decorated):
         func, func_params = _get_init_func(decorated)
     else:
         func = decorated
         func_params = list(inspect.signature(func).parameters)
-    func_id = f"@rule {func.__module__}:{func.__name__}"
+    name = name or f"{func.__module__}:{func.__name__}"
+    func_id = f"@rule {name}"
     type_hints = get_type_hints(func, include_extras=True)
-    return_type = ensure_type_annotation(
-        type_annotation=decorated
-        if inspect.isclass(decorated)
-        else type_hints.get("return"),
+    return_type = return_type or (
+        decorated if inspect.isclass(decorated) else type_hints.get("return")
+    )
+    return_type_info = ensure_type_annotation(
+        type_annotation=return_type,
         name=f"{func_id} return",
         raise_type=MissingReturnTypeAnnotation,
     )
-    is_optional = return_type.is_optional
-    metadata = collect_attributes(return_type)
-    return_type = return_type.inner_type
+    is_optional = is_optional or return_type_info.is_optional
+    metadata = collect_attributes(return_type_info)
 
     parameter_types: tuple[tuple[str, AnnotatedType], ...] = tuple(
         (
@@ -149,17 +172,13 @@ def _rule_decorator(
         decorated,
         is_async=asyncio.iscoroutinefunction(func),
         canonical_name=effective_name,
-        output_type=return_type,
+        output_type=return_type_info.inner_type,
         attributes=metadata,
         parameter_types=parameter_types,
         priority=priority,
         is_optional=is_optional,
     )
-    setattr(
-        decorated,
-        RULE_ATTR,
-        rule,
-    )
+    attach_rule(decorated, rule)
     return decorated
 
 
@@ -168,14 +187,20 @@ def rule(
     /,
     *,
     priority: int = 0,
+    name: str | None = None,
     dependency_qualifiers: Iterable[BaseQualifierMetadata] | None = None,
+    return_type: type | None = None,
+    is_optional: bool | None = None,
 ):
     """Marks a function or a class as a rule. Allowing collection via collect_rules().
 
     Args:
         f (RuleFunctionType | None, optional): The function or class to mark as a rule. Defaults to None.
+        name (str | None, optional): Override the name of the rule if exists.
         priority (int, optional): The resolution priority. Higher value equals higher priority. Defaults to 0.
         dependency_qualifiers (Iterable[BaseQualifierMetadata] | None, optional): Add qualifiers to all dependencies. Defaults to None.
+        return_type (type | None, optional): Override the return type of the rule.
+        is_optional (bool | None, optional): Override the optionality of the rule.
 
     Returns:
         The input function or class.
@@ -190,10 +215,18 @@ def rule(
         return partial(
             _rule_decorator,
             priority=priority,
+            name=name,
             dependency_qualifiers=dependency_qualifiers,
+            return_type=return_type,
+            is_optional=is_optional,
         )
     return _rule_decorator(
-        f, priority=priority, dependency_qualifiers=dependency_qualifiers
+        f,
+        priority=priority,
+        name=name,
+        dependency_qualifiers=dependency_qualifiers,
+        return_type=return_type,
+        is_optional=is_optional,
     )
 
 
@@ -209,6 +242,19 @@ def as_rule(f: Any) -> ConstructRule | None:
     if isinstance(f, ConstructRule):
         return f
     return getattr(f, RULE_ATTR, None)
+
+
+def _extract_rules(rule: ConstructRule | ConstructRuleSet):
+    if isinstance(rule, ConstructRule):
+        yield rule
+    elif isinstance(rule, ConstructRuleSet):
+        for r in rule:
+            yield from _extract_rules(r)
+    else:
+        if not callable(rule):
+            return
+        rule = getattr(rule, RULE_ATTR, None)
+        yield from _extract_rules(rule)
 
 
 def collect_rules(
@@ -231,14 +277,7 @@ def collect_rules(
                 else namespace
             )
             for item in mapping.values():
-                if isinstance(item, ConstructRule):
-                    yield item
-                else:
-                    if not callable(item):
-                        continue
-                    rule = getattr(item, RULE_ATTR, None)
-                    if isinstance(rule, ConstructRule):
-                        yield rule
+                yield from _extract_rules(item)
 
     return list(iter_rules())
 

@@ -11,6 +11,7 @@ from composify.constructor import SyncConstructorFunction
 from composify.errors import (
     AsyncBlueprintError,
     NonOptionalBuilderMismatchError,
+    NoValueError,
 )
 
 __all__ = [
@@ -31,6 +32,12 @@ class BuilderSaveTo(Protocol):
 
     def __setitem__(self, key: type[Any], value: Any) -> None:
         raise NotImplementedError()
+
+
+def _assert_optionality(type_: type, value: Any):
+    if value is None:
+        raise NoValueError(type_)
+    return value
 
 
 class AsyncBuilder:
@@ -85,7 +92,12 @@ class AsyncBuilder:
 
     async def _from_blueprint(self, blueprint: Blueprint[T]) -> T:
         name_task_pairs = tuple(
-            (name, self.from_blueprint(param))
+            (
+                name,
+                _assert_optionality(
+                    param.output_type, self.from_blueprint(param)
+                ),
+            )
             for name, param in blueprint.dependencies
         )
 
@@ -157,7 +169,9 @@ class Builder:
 
     def _from_blueprint(self, blueprint: Blueprint[T]) -> T:
         parameters = {
-            name: self.from_blueprint(param)
+            name: _assert_optionality(
+                param.output_type, self.from_blueprint(param)
+            )
             for name, param in blueprint.dependencies
         }
 

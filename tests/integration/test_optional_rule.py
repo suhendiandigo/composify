@@ -4,20 +4,25 @@ import pytest
 
 from composify.applications import ComposifyGetOrCreate
 from composify.builder import Builder
-from composify.errors import NonOptionalBuilderMismatchError
-from composify.resolutions import UNIQUE
+from composify.errors import (
+    MultipleDependencyResolutionError,
+    NonOptionalBuilderMismatchError,
+    NoValueError,
+    ResolutionFailureError,
+)
+from composify.resolutions import SELECT_FIRST, UNIQUE
 from composify.rules import rule
 from tests.utils import ExecutionCounter, create_rule_resolver
 
 
 @dataclass(frozen=True)
 class Param:
-    value: str
+    value: int
 
 
 @dataclass(frozen=True)
 class Result:
-    value: str
+    value: int
 
 
 @rule
@@ -33,6 +38,11 @@ def example_param_0() -> Param:
 @rule
 def example_param_1() -> Param:
     return Param(-5)
+
+
+@rule(priority=-1)
+def no_param() -> Param | None:
+    return None
 
 
 @rule
@@ -103,3 +113,61 @@ def test_multiple_rule():
     result = get_or_create.one(Result)
     assert result.value == -10
     assert counter.execution == 1
+
+
+def test_no_resolution():
+    resolver = create_rule_resolver(
+        no_param,
+        example_not_optional_rule,
+    )
+    builder = Builder()
+
+    get_or_create = ComposifyGetOrCreate(resolver, builder, UNIQUE)
+
+    with pytest.raises(NoValueError):
+        get_or_create.one(Result)
+
+
+@dataclass
+class Service:
+    value: int
+
+
+@rule
+def create_service(result: Result) -> Service:
+    return Service(value=result.value)
+
+
+def test_select_unique():
+    resolver = create_rule_resolver(
+        no_param,
+        example_param,
+        example_not_optional_rule,
+        create_service,
+    )
+    builder = Builder()
+
+    get_or_create = ComposifyGetOrCreate(resolver, builder, UNIQUE)
+
+    result = get_or_create.one(Service)
+    assert result.value == 10
+
+
+def test_select_first():
+    resolver = create_rule_resolver(
+        no_param,
+        example_param,
+        example_param_0,
+        example_not_optional_rule,
+        create_service,
+    )
+    builder = Builder()
+
+    get_or_create = ComposifyGetOrCreate(resolver, builder, UNIQUE)
+
+    with pytest.raises(ResolutionFailureError) as exc:
+        get_or_create.one(Service)
+    assert exc.value.contains(MultipleDependencyResolutionError)
+
+    result = get_or_create.one(Service, SELECT_FIRST)
+    assert result.value == 10

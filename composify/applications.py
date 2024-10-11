@@ -4,9 +4,9 @@ import asyncio
 import itertools
 from collections.abc import Callable, Iterable, Sequence
 from concurrent.futures import ThreadPoolExecutor
+from functools import wraps
 from typing import Any, TypeVar
 
-from composify._helper import ensure_type_annotation
 from composify.blueprint import (
     DEFAULT_RESOLUTION_MODE,
     Blueprint,
@@ -82,6 +82,28 @@ def _is_not_none(val: Any) -> bool:
     return val is not None
 
 
+def _skip_no_value_error(func):
+    @wraps(func)
+    def wrapper(*args, **kwargs):
+        try:
+            return func(*args, **kwargs)
+        except NoValueError:
+            return None
+
+    return wrapper
+
+
+def _async_skip_no_value_error(func):
+    @wraps(func)
+    async def wrapper(*args, **kwargs):
+        try:
+            return await func(*args, **kwargs)
+        except NoValueError:
+            return None
+
+    return wrapper
+
+
 class ComposifyGetOrCreate(GetOrCreate):
     """Synchronous Get or Create protocol implementation using Composify. Only support non async @rule."""
 
@@ -114,9 +136,6 @@ class ComposifyGetOrCreate(GetOrCreate):
             MultipleResolutionError: If there are multiple possible instances.
             NoResolutionError: If there is no available instance.
         """
-        type_info = ensure_type_annotation(
-            type_annotation=type_, name="__input__"
-        )
         plans = _select_blueprint(
             type_,
             tuple(
@@ -125,10 +144,13 @@ class ComposifyGetOrCreate(GetOrCreate):
         )
         result = None
         for plan in plans:
-            result = self._builder.from_blueprint(plan)
-            if result is not None:
-                break
-        if not type_info.is_optional and result is None:
+            try:
+                result = self._builder.from_blueprint(plan)
+                if result is not None:
+                    break
+            except NoValueError:
+                pass
+        if result is None:
             raise NoValueError(type_)
         return result
 
@@ -161,7 +183,10 @@ class ComposifyGetOrCreate(GetOrCreate):
         return tuple(
             filter(
                 _is_not_none,
-                (self._builder.from_blueprint(plan) for plan in plans),
+                (
+                    _skip_no_value_error(self._builder.from_blueprint)(plan)
+                    for plan in plans
+                ),
             )
         )
 
@@ -198,9 +223,6 @@ class ComposifyAsyncGetOrCreate(AsyncGetOrCreate):
             MultipleResolutionError: If there are multiple possible instances.
             NoResolutionError: If there is no available instance.
         """
-        type_info = ensure_type_annotation(
-            type_annotation=type_, name="__input__"
-        )
         plans = _select_blueprint(
             type_,
             tuple(
@@ -209,10 +231,13 @@ class ComposifyAsyncGetOrCreate(AsyncGetOrCreate):
         )
         result = None
         for plan in plans:
-            result = await self._builder.from_blueprint(plan)
-            if result is not None:
-                break
-        if not type_info.is_optional and result is None:
+            try:
+                result = await self._builder.from_blueprint(plan)
+                if result is not None:
+                    break
+            except NoValueError:
+                pass
+        if result is None:
             raise NoValueError(type_)
         return result
 
@@ -246,7 +271,12 @@ class ComposifyAsyncGetOrCreate(AsyncGetOrCreate):
             filter(
                 _is_not_none,
                 await asyncio.gather(
-                    *(self._builder.from_blueprint(plan) for plan in plans)
+                    *(
+                        _async_skip_no_value_error(
+                            self._builder.from_blueprint
+                        )(plan)
+                        for plan in plans
+                    )
                 ),
             )
         )

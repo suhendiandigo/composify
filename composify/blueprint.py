@@ -194,13 +194,18 @@ class BlueprintResolver:
         mode: ResolutionMode,
         trace: _Tracing,
     ):
-        resolved: Iterable = self._resolve_exhaustive(
-            target=target,
-            name=name,
-            mode=mode,
-            trace=trace,
+        resolved: Iterable = tuple(
+            self._resolve_exhaustive(
+                target=target,
+                name=name,
+                mode=mode,
+                trace=trace,
+            )
         )
-        return (_get_first(resolved),)
+        for bp in resolved:
+            yield bp
+            if not bp.is_optional:
+                return
 
     def _resolve_exhaustive(
         self,
@@ -283,7 +288,11 @@ class BlueprintResolver:
                     output_type=plan.output_type,
                     dependencies=frozenset(parameter_permutation),
                     priority=(level, plan_order, i),
-                    is_optional=plan.is_optional,
+                    is_optional=plan.is_optional
+                    or any(
+                        parameter.is_optional
+                        for _, parameter in parameter_permutation
+                    ),
                 )
                 i += 1
         else:
