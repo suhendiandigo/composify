@@ -44,7 +44,7 @@ from composify import (
 )
 from composify.fastapi.lifespan import Lifespan, LifespanHook
 from composify.provider import ConstructorProvider
-from composify.resolutions import EXHAUSTIVE, SELECT_FIRST, UNIQUE
+from composify.resolutions import EXHAUSTIVE, UNIQUE
 from composify.rules import ConstructRule
 
 
@@ -102,5 +102,5 @@ def create_app(
     return Composify(
         providers=providers,
         rules=itertools.chain(default_rules, rules),
-        default_resolution=SELECT_FIRST,
+        default_resolution=UNIQUE,
     ).get_or_create.one(FastAPI)
