@@ -1,5 +1,5 @@
 """Integration with pydantic_settings."""
 
-from .settings_provider import PydanticSettingsProvider
+from .rules import SettingsEnvSource, settings_rule
 
-__all__ = ("PydanticSettingsProvider",)
+__all__ = ("settings_rule", "SettingsEnvSource")
