@@ -45,7 +45,7 @@ from composify import (
 from composify.fastapi.lifespan import Lifespan, LifespanHook
 from composify.provider import ConstructorProvider
 from composify.resolutions import UNIQUE
-from composify.rules import ConstructRule
+from composify.rules import ConstructRule, as_rule
 
 
 class APIRouterCollection(tuple[APIRouter, ...]):
@@ -82,6 +82,29 @@ def collect_lifespan_hooks(
 default_rules = collect_rules()
 
 
+@rule
+def __create_default_composify_fastapi(
+    routers: APIRouterCollection, lifespan: Lifespan
+) -> FastAPI:
+    fast_api = FastAPI(
+        title="Composify FastAPI",
+        lifespan=lifespan,  # We use the lifespan injected by Composify.
+    )
+
+    for router in routers:
+        fast_api.include_router(router)
+
+    return fast_api
+
+
+def _has_fastapi_rule(all_rules: Iterable[ConstructRule]) -> bool:
+    for r in all_rules:
+        if issubclass(r.output_type, FastAPI):
+            return True
+
+    return False
+
+
 def create_app(
     rules: Iterable[ConstructRule],
     providers: Iterable[ConstructorProvider] = (),
@@ -97,8 +120,13 @@ def create_app(
 
 
     """
+    all_rules = tuple(itertools.chain(default_rules, rules))
+
+    if not _has_fastapi_rule(all_rules):
+        all_rules += (as_rule(__create_default_composify_fastapi),)
+
     return Composify(
         providers=providers,
-        rules=itertools.chain(default_rules, rules),
+        rules=all_rules,
         default_resolution=UNIQUE,
     ).get_or_create.one(FastAPI)
