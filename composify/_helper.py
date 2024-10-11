@@ -1,7 +1,7 @@
 from collections.abc import Sequence
 from dataclasses import dataclass
-from types import NoneType
-from typing import Annotated, Any, Union, get_args, get_origin
+from types import NoneType, UnionType
+from typing import Annotated, Any, get_args, get_origin
 
 from composify.errors import InvalidTypeAnnotation
 
@@ -33,7 +33,7 @@ def ensure_type_annotation(
     metadata = []
     while not isinstance(inner_type, type):
         origin = get_origin(inner_type)
-        if origin is Union:
+        if origin is UnionType:
             args = get_args(inner_type)
             is_optional = any(arg is NoneType for arg in args)
             union_types = tuple(filter(lambda x: x is not NoneType, args))
