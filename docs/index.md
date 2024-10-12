@@ -1,6 +1,10 @@
 [![CI](https://img.shields.io/github/actions/workflow/status/suhendiandigo/composify/ci.yaml?branch=main&logo=github&label=CI)](https://github.com/suhendiandigo/composify/actions?query=event%3Apush+branch%3Amain+workflow%3ACI)
 [![license](https://img.shields.io/github/license/suhendiandigo/composify.svg)](https://github.com/suhendiandigo/composify/blob/main/LICENSE)
 
+
+!!! warning  "🚧 Work in Progress" 
+    This page is a work in progress.
+
 **Composify** is a Python framework designed to simplify the development of applications. By using **rule declarations** and **dependency injection**, Composify enables clean and maintainable application structures.
 
 Components and their relationships are declared upfront via the `@rule` decorator. The framework automatically builds a dependency graph and instantiates only the necessary components at runtime, handling dependency injection for you.

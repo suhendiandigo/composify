@@ -1,37 +1,17 @@
+"""Type helper module. Generally only accessed by developers of extensions to Composify."""
+
 import itertools
 from typing import (  # type: ignore[attr-defined]
     Annotated,
-    Any,
-    ForwardRef,
     Generic,
     Protocol,
     TypeAlias,
     TypeVar,
     Union,
     _AnnotatedAlias,
-    _eval_type,
     get_args,
     get_origin,
 )
-
-from composify.errors import InvalidTypeAnnotation
-
-
-def ensure_type_annotation(
-    *,
-    type_annotation: Any,
-    name: str,
-    raise_type: type[InvalidTypeAnnotation],
-) -> type:
-    if type_annotation is None:
-        raise raise_type(f"{name} is missing a type annotation.")
-    if not isinstance(type_annotation, type):
-        origin = get_origin(type_annotation)
-        if origin is not Annotated:
-            raise raise_type(
-                f"The annotation for {name} must be a type, got {type_annotation} of type {type(type_annotation)}."
-            )
-    return type_annotation
 
 
 def _expand_union_args_combinations(type_):
@@ -78,18 +58,12 @@ EXCLUDED_BASE_TYPES = (object, Protocol, Generic)
 
 
 def resolve_base_types(type_: type) -> tuple[type, ...]:
+    """Resolve all bases of a type. These bases are used to qualify objects on Get and GetOrCreate."""
     return tuple(
         type_
         for type_ in _resolve_bases(type_)
         if type_ not in EXCLUDED_BASE_TYPES
     )
-
-
-def resolve_forward_ref(forward_ref: str, globals_: dict):
-    if not isinstance(forward_ref, str):
-        return forward_ref
-
-    return _eval_type(ForwardRef(forward_ref), globals_, globals_)
 
 
 T = TypeVar("T")
@@ -98,11 +72,8 @@ AnnotatedType: TypeAlias = type[T] | _AnnotatedAlias
 
 
 def get_type(type_: AnnotatedType) -> type:
+    """Get base type object."""
     origin = get_origin(type_)
     if origin is Annotated:
         type_ = get_args(type_)[0]
     return type_
-
-
-def resolve_type_name(value: Any):
-    return f"{value.__module__}.{value.__qualname__}".replace(".<locals>", "")

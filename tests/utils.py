@@ -1,6 +1,8 @@
 import asyncio
+from functools import wraps
 from typing import Any
 
+from composify._helper import resolve_type_name
 from composify.attributes import Name
 from composify.blueprint import Blueprint, BlueprintResolver
 from composify.constructor import ConstructorFunction
@@ -13,21 +15,26 @@ from composify.provider import (
 )
 from composify.resolutions import EXHAUSTIVE
 from composify.rules import ConstructRule, RuleRegistry, as_rule
-from composify.types import resolve_type_name
 
 
-def create_resolver(*factories: ConstructorProvider):
-    return BlueprintResolver(providers=factories, default_resolution=EXHAUSTIVE)
+def create_resolver(
+    *factories: ConstructorProvider, default_resolution=EXHAUSTIVE
+):
+    return BlueprintResolver(
+        providers=factories, default_resolution=default_resolution
+    )
 
 
 def create_rule_provider(*rules: ConstructRule):
     return RuleBasedConstructorProvider(
-        RuleRegistry(as_rule(rule) for rule in rules)
+        RuleRegistry(as_rule(rule) for rule in rules),
     )
 
 
-def create_rule_resolver(*rules: ConstructRule):
-    return create_resolver(create_rule_provider(*rules))
+def create_rule_resolver(*rules: ConstructRule, default_resolution=EXHAUSTIVE):
+    return create_resolver(
+        create_rule_provider(*rules), default_resolution=default_resolution
+    )
 
 
 def _format_construction_string(
@@ -62,6 +69,7 @@ def blueprint(
         output_type=type,  # Not used for building
         dependencies=frozenset(dependencies.items()),
         priority=tuple(),  # Not used for building
+        is_optional=False,
     )
 
 
@@ -75,6 +83,7 @@ def static(
         output_type=type,  # Not used for building
         dependencies=frozenset(),
         priority=tuple(),  # Not used for building
+        is_optional=False,
     )
 
 
@@ -100,6 +109,7 @@ def instance(
         output_type=type,  # Not used for building
         dependencies=frozenset(),
         priority=tuple(),  # Not used for building
+        is_optional=False,
     )
 
 
@@ -123,3 +133,16 @@ def _find_difference(
 
 def find_difference(result: Blueprint, expected: Blueprint) -> tuple | None:
     return _find_difference(result, expected, tuple())
+
+
+class ExecutionCounter:
+    def __init__(self) -> None:
+        self.execution = 0
+
+    def __call__(self, f):
+        @wraps(f)
+        def wrapper(*args, **kwargs):
+            self.execution += 1
+            return f(*args, **kwargs)
+
+        return wrapper

@@ -1,3 +1,5 @@
+"""Default constructor providers implementation."""
+
 from collections.abc import Iterable
 from dataclasses import dataclass
 from typing import Any, Generic, Protocol, TypeVar
@@ -28,13 +30,28 @@ class Static(Generic[T]):
 
 
 class ConstructorProvider(Protocol):
+    """Base protocol for providers of constructor either based on a
+    source of truth or by generating constructors.
+    """
+
     def provide_for_type(
         self, type_: AnnotatedType[T]
     ) -> Iterable[Constructor[T]]:
+        """Provide constructor for a specific type.
+
+        Args:
+            type_ (AnnotatedType): The type to provide for.
+
+        Returns:
+            Iterable[Constructor]: Iterable of constructor matching the type_.
+
+        """
         raise NotImplementedError()
 
 
 class ContainerInstanceProvider(ConstructorProvider):
+    """Provide constructor base on the content of a composify.Container object."""
+
     __slots__ = ("_container",)
 
     def __init__(
@@ -45,11 +62,21 @@ class ContainerInstanceProvider(ConstructorProvider):
 
     @property
     def container(self) -> Container:
+        """The container referenced by this provider."""
         return self._container
 
     def provide_for_type(
         self, type_: AnnotatedType[T]
     ) -> Iterable[Constructor[T]]:
+        """Provide constructor for a specific type.
+
+        Args:
+            type_ (AnnotatedType): The type to provide for.
+
+        Returns:
+            Iterable[Constructor]: Iterable of constructor matching the type_.
+
+        """
         try:
             wrapper = self._container.get_wrapper(type_)  # type: ignore[var-annotated]
             if wrapper.attributes.get(ProvidedBy, None) is not None:
@@ -62,12 +89,15 @@ class ContainerInstanceProvider(ConstructorProvider):
                 is_async=False,
                 output_type=type_,
                 dependencies=(),
+                is_optional=False,
             )
         except InstanceNotFoundError:
             pass
 
 
 class RuleBasedConstructorProvider(ConstructorProvider):
+    """Provide constructor based on the @rule decorator"""
+
     __slots__ = ("_rules",)
 
     _rules: RuleRegistry
@@ -78,6 +108,15 @@ class RuleBasedConstructorProvider(ConstructorProvider):
     def provide_for_type(
         self, type_: AnnotatedType[T]
     ) -> Iterable[Constructor[T]]:
+        """Provide constructor for a specific type.
+
+        Args:
+            type_ (AnnotatedType): The type to provide for.
+
+        Returns:
+            Iterable[Constructor]: Iterable of constructor matching the type_.
+
+        """
         rules: Iterable[ConstructRule[T]] = self._rules.get(type_)
         if not rules:
             return
@@ -88,4 +127,5 @@ class RuleBasedConstructorProvider(ConstructorProvider):
                 is_async=rule.is_async,
                 output_type=type_,
                 dependencies=rule.parameter_types,
+                is_optional=rule.is_optional,
             )

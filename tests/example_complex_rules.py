@@ -24,6 +24,11 @@ class Result:
 
 
 @rule
+def create_direct_result(param: Param) -> Result:
+    return Result(param.value)
+
+
+@rule
 def infer_param_1(param: Param) -> Param1:
     return Param1(param.value * 2)
 
@@ -38,11 +43,6 @@ def create_result(param1: Param1, param2: Param2) -> Result:
     return Result(param1.value + param2.value)
 
 
-@rule
-def create_direct_result(param: Param) -> Result:
-    return Result(param.value)
-
-
 DEFAULT_VALUE = 1
 
 
@@ -51,4 +51,15 @@ def default_param() -> Param:
     return Param(DEFAULT_VALUE)
 
 
-rules = collect_rules()
+rules_1 = collect_rules()
+
+
+DEFAULT_VALUE_2 = 2
+
+
+@rule
+def default_param_2() -> Param:
+    return Param(DEFAULT_VALUE)
+
+
+rules_2 = collect_rules()

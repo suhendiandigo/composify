@@ -5,7 +5,7 @@ import pytest
 
 from composify.builder import AsyncBuilder
 from composify.rules import rule
-from tests.utils import blueprint, static
+from tests.utils import ExecutionCounter, blueprint, static
 
 
 @dataclass(frozen=True)
@@ -37,18 +37,6 @@ async def test_construct():
     builder = AsyncBuilder()
     result = await builder.from_blueprint(plan)
     assert result == Value(10)
-
-
-class ExecutionCounter:
-    def __init__(self) -> None:
-        self.execution = 0
-
-    def __call__(self, f):
-        def wrapper(*args, **kwargs):
-            self.execution += 1
-            return f(*args, **kwargs)
-
-        return wrapper
 
 
 @pytest.mark.asyncio_cooperative

@@ -44,6 +44,14 @@ testing = [
     "pytest>=8.3.3",
     "pytest-asyncio-cooperative>=0.37.0",
 ]
+docs = [
+    "mkdocs",
+    "mkdocs-exclude",
+    "mkdocs-material",
+    "mkdocstrings-python",
+    "mike",
+    "pytest-examples>=0.0.13",
+]
 
 [tool.black]
 line-length = 79
@@ -103,7 +111,7 @@ select = [
     'F',      # Pyflakes
     'E',      # pycodestyle (Error)
     'I',      # isort
-#    'D',      # pydocstyle
+    'D',      # pydocstyle
     'UP',     # pyupgrade
     'YTT',    # flake8-2020
     'B',      # flake8-bugbear
@@ -112,7 +120,7 @@ select = [
     'C4',     # flake8-comprehensions
     'PYI006', # flake8-pyi
 ]
-ignore = ['D', 'E501', 'B011', 'B028', 'B904']
+ignore = ['D105', 'D107', 'D205', 'D415', 'E501', 'B011', 'B028', 'B904']
 flake8-quotes = {inline-quotes = 'double', multiline-quotes = 'double'}
 isort = { known-first-party = ['composify', 'tests'] }
 pydocstyle = { convention = 'google' }

@@ -1,12 +1,16 @@
+"""This module contains implementation for Blueprint."""
+
+import itertools
 from collections.abc import Iterable, Sequence
 from dataclasses import dataclass, field
-from typing import Generic, TypeAlias, TypeVar
+from typing import Annotated, Generic, TypeAlias, TypeVar
 
 from composify._qualifiers import Resolution
 from composify.constructor import Constructor, ConstructorFunction
 from composify.errors import (
     CyclicDependencyError,
     InvalidResolutionModeError,
+    MultipleDependencyResolutionError,
     NoConstructorError,
     ResolutionFailureError,
     ResolverError,
@@ -15,8 +19,10 @@ from composify.metadata.qualifiers import collect_qualifiers
 from composify.provider import ConstructorProvider
 from composify.resolutions import (
     DEFAULT_RESOLUTION_MODE,
-    RESOLUTION_MODES,
     ResolutionMode,
+    ResolutionType,
+    is_resolution_mode,
+    split_resolution,
 )
 from composify.types import AnnotatedType
 
@@ -39,6 +45,7 @@ class Blueprint(Generic[T]):
     output_type: AnnotatedType[T] = field(hash=False, compare=False)
     dependencies: frozenset[tuple[str, "Blueprint"]]
     priority: tuple[int, ...] = field(hash=False, compare=False)
+    is_optional: bool = field(hash=False, compare=False)
 
 
 _Parameter: TypeAlias = tuple[str, Blueprint]
@@ -71,13 +78,17 @@ ConstructorResultName: TypeAlias = str
 
 
 @dataclass(frozen=True)
-class Tracing:
+class _Tracing:
     traces: tuple[tuple[ConstructorName, ConstructorResultName, type], ...]
 
     def chain(
         self, trace: tuple[ConstructorName, ConstructorResultName, type]
-    ) -> "Tracing":
-        return Tracing(traces=(*self.traces, trace))
+    ) -> "_Tracing":
+        return _Tracing(traces=(*self.traces, trace))
+
+
+def _get_first(iterable):
+    return next(iter(iterable), None)
 
 
 class BlueprintResolver:
@@ -95,10 +106,18 @@ class BlueprintResolver:
         self._default_resolution = default_resolution
 
     def clear_memo(self) -> None:
+        """Clear blueprint memo."""
         self._memo.clear()
 
     def register_provider(self, provider: ConstructorProvider) -> None:
-        """Register a new provider to the resolver."""
+        """Register a new provider to the resolver.
+
+        Args:
+            provider (ConstructorProvider): The provider to register.
+
+        Raises:
+            ValueError: If a provider is already register.
+        """
         if provider in self._providers:
             raise ValueError(f"Provider {provider!r} is already registered.")
         self._providers = self._providers + (provider,)
@@ -109,7 +128,14 @@ class BlueprintResolver:
     def register_providers(
         self, providers: Iterable[ConstructorProvider]
     ) -> None:
-        """Register a new provider to the resolver."""
+        """Register new providers to the resolver.
+
+        Args:
+            providers (Iterable[ConstructorProvider]): The providers to register.
+
+        Raises:
+            ValueError: If a provider is already register.
+        """
         for provider in providers:
             if provider in self._providers:
                 raise ValueError(
@@ -131,20 +157,97 @@ class BlueprintResolver:
     ) -> tuple[Constructor, ...]:
         result = self._memo.get(target, None)
         if result is None:
-            match mode:
-                case "exhaustive":
-                    result = tuple(self._raw_create_plans(target))
-                case "select_first":
-                    plan = next(iter(self._raw_create_plans(target)), None)
-                    if plan is not None:
-                        result = (plan,)
-                    else:
-                        result = ()
-                case _:
-                    raise InvalidResolutionModeError(mode)
+            result = tuple(self._raw_create_plans(target))
 
             self._memo[target] = result
         return result
+
+    def _resolve_unique(
+        self,
+        target: AnnotatedType[T],
+        name: str,
+        mode: ResolutionMode,
+        trace: _Tracing,
+        priority: tuple[int, ...],
+    ):
+        resolved: Iterable = tuple(
+            self._resolve_exhaustive(
+                target=target,
+                name=name,
+                mode=mode,
+                trace=trace,
+                priority=priority,
+            )
+        )
+        non_optional_count = sum(
+            (0 if bp.is_optional else 1) for bp in resolved
+        )
+        if non_optional_count > 1:
+            raise MultipleDependencyResolutionError(
+                target,
+                tuple(blueprint.source for blueprint in resolved),
+                trace.traces,
+            )
+        for bp in resolved:
+            yield bp
+            if not bp.is_optional:
+                return
+
+    def _resolve_first(
+        self,
+        target: AnnotatedType[T],
+        name: str,
+        mode: ResolutionMode,
+        trace: _Tracing,
+        priority: tuple[int, ...],
+    ):
+        resolved: Iterable = tuple(
+            self._resolve_exhaustive(
+                target=target,
+                name=name,
+                mode=mode,
+                trace=trace,
+                priority=priority,
+            )
+        )
+        for bp in resolved:
+            yield bp
+            if not bp.is_optional:
+                return
+
+    def _resolve_exhaustive(
+        self,
+        target: AnnotatedType[T],
+        name: str,
+        mode: ResolutionMode,
+        trace: _Tracing,
+        priority: tuple[int, ...],
+    ) -> Iterable[Blueprint[T]]:
+        plans = self._create_plans(target, mode)
+        if not plans:
+            raise NoConstructorError(target, trace.traces)
+        errors: list[ResolverError] = []
+        constructions: list[Blueprint[T]] = []
+        for plan_order, plan in enumerate(plans):
+            try:
+                constructions.extend(
+                    self._resolve_plan(
+                        target=target,
+                        name=name,
+                        plan=plan,
+                        plan_order=plan_order,
+                        mode=mode,
+                        trace=trace,
+                        priority=priority,
+                    )
+                )
+            except (NoConstructorError, CyclicDependencyError) as exc:
+                errors.append(exc)
+            except ResolutionFailureError as exc:
+                errors.extend(exc.errors)
+        if not constructions and errors:
+            raise ResolutionFailureError(target, trace.traces, errors)
+        yield from constructions
 
     def _resolve_plan(
         self,
@@ -153,7 +256,8 @@ class BlueprintResolver:
         plan: Constructor[T],
         plan_order: int,
         mode: ResolutionMode,
-        trace: Tracing,
+        trace: _Tracing,
+        priority: tuple[int, ...],
     ) -> Iterable[Blueprint[T]]:
         curr_trace = plan.source, name, target
         tracing = trace.chain(curr_trace)
@@ -171,14 +275,13 @@ class BlueprintResolver:
                                 name=dependency_name,
                                 mode=mode,
                                 trace=tracing,
+                                priority=priority,
                             )
                         ),
                     )
                 )
             i = 0
-            for parameter_permutation, level in permutate_parameters(
-                parameters
-            ):
+            for parameter_permutation, _ in permutate_parameters(parameters):
                 yield Blueprint(
                     source=plan.source,
                     constructor=plan.constructor,
@@ -194,7 +297,12 @@ class BlueprintResolver:
                     ),
                     output_type=plan.output_type,
                     dependencies=frozenset(parameter_permutation),
-                    priority=(level, plan_order, i),
+                    priority=priority + (plan_order, i),
+                    is_optional=plan.is_optional
+                    or any(
+                        parameter.is_optional
+                        for _, parameter in parameter_permutation
+                    ),
                 )
                 i += 1
         else:
@@ -204,55 +312,103 @@ class BlueprintResolver:
                 is_async=plan.is_async,
                 output_type=plan.output_type,
                 dependencies=frozenset(),
-                priority=(0, plan_order),
+                priority=priority + (plan_order, 0),
+                is_optional=plan.is_optional,
             )
 
+    def _select_resolver(self, mode: ResolutionType):
+        match mode:
+            case "unique":
+                resolve = self._resolve_unique
+            case "exhaustive":
+                resolve = self._resolve_exhaustive
+            case "select_first":
+                resolve = self._resolve_first
+            case _:
+                raise InvalidResolutionModeError(mode)
+        return resolve
+
     def _resolve(
-        self, target: type[T], name: str, mode: ResolutionMode, trace: Tracing
+        self,
+        target: AnnotatedType[T],
+        name: str,
+        mode: ResolutionMode,
+        trace: _Tracing,
+        priority: tuple[int, ...],
     ) -> Iterable[Blueprint[T]]:
+        mode, next_modes = split_resolution(mode)
         qualifiers = collect_qualifiers(target)
+        type_ = target
         if resolution := qualifiers.get(Resolution):
             mode = resolution.mode
-        plans = self._create_plans(target, mode)
-        if not plans:
-            raise NoConstructorError(target, trace.traces)
-        errors: list[ResolverError] = []
-        constructions: list[Blueprint[T]] = []
-        for plan_order, plan in enumerate(plans):
-            try:
-                constructions.extend(
-                    self._resolve_plan(
-                        target=target,
-                        name=name,
-                        plan=plan,
-                        plan_order=plan_order,
-                        mode=mode,
-                        trace=trace,
-                    )
-                )
-            except (NoConstructorError, CyclicDependencyError) as exc:
-                errors.append(exc)
-            except ResolutionFailureError as exc:
-                errors.extend(exc.errors)
-        if not constructions and errors:
-            raise ResolutionFailureError(target, trace.traces, errors)
-        yield from constructions
+        else:
+            type_ = Annotated[type_, Resolution(mode)]  # type: ignore[assignment]
+        resolve = self._select_resolver(mode)
+        return resolve(
+            type_, name=name, mode=next_modes, trace=trace, priority=priority
+        )
 
     def resolve(
         self,
-        target: type[T],
+        target: AnnotatedType[T],
         mode: ResolutionMode | None = None,
     ) -> Iterable[Blueprint[T]]:
+        """Generate blueprint for a type.
+
+        Args:
+            target (type[T]): The type to generate for.
+            mode (ResolutionMode | None, optional): The resolution mode. Defaults to select_first.
+
+        Raises:
+            InvalidResolutionModeError: Raised if the resolution mode is invalid.
+            ResolutionFailureError: Raised if there is no generated blueprint.
+
+        Returns:
+            Iterable[Blueprint[T]]: The blueprint for target type.
+        """
         mode = mode or self._default_resolution
-        if mode not in RESOLUTION_MODES:
+        if not is_resolution_mode(mode):
             raise InvalidResolutionModeError(mode)
-        tracing = Tracing(())
+        tracing = _Tracing(())
         try:
             return sorted(
                 self._resolve(
-                    target=target, name="__root__", mode=mode, trace=tracing
+                    target=target,
+                    name="__root__",
+                    mode=mode,
+                    trace=tracing,
+                    priority=(),
                 ),
                 key=lambda x: x.priority,
             )
-        except (NoConstructorError, CyclicDependencyError) as exc:
+        except (
+            NoConstructorError,
+            CyclicDependencyError,
+            MultipleDependencyResolutionError,
+        ) as exc:
             raise ResolutionFailureError(target, tracing.traces, [exc]) from exc
+
+
+def _group_key(level: int):
+    slice_end = level + 1
+
+    def key(bp: Blueprint):
+        return bp.priority[:slice_end]
+
+    return key
+
+
+class BlueprintGrouper(Generic[T]):
+    def __init__(
+        self, blueprints: Iterable[Blueprint[T]], level: int | None = 0
+    ):
+        self._blueprints = tuple(blueprints)
+        self._key = _group_key(level) if level is not None else None
+
+    def __iter__(self):
+        if self._key is None:
+            for bp in self._blueprints:
+                yield (bp,)
+        else:
+            for _, group in itertools.groupby(self._blueprints, key=self._key):
+                yield group

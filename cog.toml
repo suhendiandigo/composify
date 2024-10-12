@@ -1,0 +1,15 @@
+[commit_types]
+chore = { changelog_title = "", omit_from_changelog = true }
+ci = { changelog_title = "", omit_from_changelog = true }
+perf = { changelog_title = "", omit_from_changelog = true }
+refactor = { changelog_title = "", omit_from_changelog = true }
+
+[changelog]
+path = "docs/changelog.md"
+template = "remote"
+remote = "github.com"
+owner = "suhendiandigo"
+repository = "composify"
+authors = [
+  { signature = "Suhendi Andigo", username = "suhendiandigo" },
+]
