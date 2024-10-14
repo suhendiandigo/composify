@@ -6,6 +6,7 @@ from collections.abc import Iterable, Sequence
 from dataclasses import dataclass
 from typing import Generic, TypeAlias, TypeVar
 
+from composify._helper import get_type_info, wrap_metadata
 from composify._qualifiers import DisallowSubclass
 from composify.errors import DuplicatedEntryError
 from composify.metadata.attributes import AttributeSet, collect_attributes
@@ -49,15 +50,23 @@ class FilteringContext:
     attributes: AttributeSet
     qualifiers: QualifierSet
 
+    @staticmethod
+    def from_type(key: Key):
+        return FilteringContext(
+            key=key,
+            attributes=collect_attributes(key),
+            qualifiers=collect_qualifiers(key),
+        )
 
-class EntriesFilterer(Protocol, Generic[E]):
+
+class EntriesFilterer(Protocol):
     def filter_entries(
         self, entries: Iterable[E], context: FilteringContext
     ) -> Iterable[E]:
         raise NotImplementedError()
 
 
-class DefaultEntriesFilterer(EntriesFilterer[E]):
+class DefaultEntriesFilterer(EntriesFilterer):
     def filter_entries(
         self, entries: Iterable[E], context: FilteringContext
     ) -> Iterable[E]:
@@ -75,7 +84,7 @@ class DefaultEntriesFilterer(EntriesFilterer[E]):
         return entries
 
 
-class EntriesCollator(Protocol, Generic[E]):
+class EntriesCollator(Protocol):
     """Combine entries together.
     Raise errors if a new entry do not fit with existing entries.
     Because of duplicated value, etc.
@@ -92,7 +101,7 @@ class EntriesCollator(Protocol, Generic[E]):
         raise NotImplementedError()
 
 
-class DefaultEntriesCollator(EntriesCollator[E]):
+class DefaultEntriesCollator(EntriesCollator):
     """By default we only validate based on equality."""
 
     def collate_entries(self, entry: E, entries: list[E]) -> None:
@@ -121,21 +130,28 @@ class MemoizedTypeResolver:
 
     def _add_subtype(self, base_type: type, sub_type: type) -> None:
         if base_type in self._sub_types:
-            sub_types = self._sub_types
+            sub_types = self._sub_types[base_type]
         else:
-            sub_types = self._sub_types[base_type] = [base_type]
-        sub_types.append(sub_type)
+            sub_types = self._sub_types[base_type] = set()
+        sub_types.add(sub_type)
 
-    def resolve_sub_types(self, type_: type) -> Sequence[type,]:
+    def resolve_sub_types(self, type_: type) -> Sequence[type]:
         """Only return sub types "seen" by resolve_base_types."""
-        if type_ in self._sub_types:
-            return tuple(self._sub_types[type_])
+        base_type_info = get_type_info(type_)
+        if base_type_info.inner_type in self._sub_types:
+            return tuple(
+                wrap_metadata(t, base_type_info.metadata)
+                for t in self._sub_types[base_type_info.inner_type]
+            )
         return (type_,)
 
     def resolve_base_types(self, type_: type) -> Sequence[type]:
         if type_ in self._base_types:
             return self._base_types[type_]
-        self._base_types[type_] = bases = resolve_base_types(type_)
+        base_type = get_type(type_)
+        self._base_types[type_] = bases = resolve_base_types(base_type)
+        for base in bases:
+            self._add_subtype(base, base_type)
         return bases
 
 
@@ -153,8 +169,8 @@ class TypedRegistry(Generic[E]):
         self,
         initial_entries: Iterable[E] | None = None,
         *,
-        entries_filterer: EntriesFilterer[E] | None = None,
-        entries_collator: EntriesCollator[E] | None = None,
+        entries_filterer: EntriesFilterer | None = None,
+        entries_collator: EntriesCollator | None = None,
         # Allows for sharing memoized type resolver.
         type_resolver: MemoizedTypeResolver | None = None,
     ) -> None:
@@ -192,11 +208,7 @@ class TypedRegistry(Generic[E]):
             return entries
         return self._entries_filterer.filter_entries(
             entries,
-            FilteringContext(
-                key=key,
-                attributes=collect_attributes(key),
-                qualifiers=collect_qualifiers(key),
-            ),
+            FilteringContext.from_type(key),
         )
 
     def _get_entries(self, key: Key) -> Iterable[E]:
@@ -213,18 +225,18 @@ class TypedRegistry(Generic[E]):
             self.add_entry(entry)
 
     def add_entry(self, entry: E) -> None:
-        for type_ in self._resolver.resolve_base_types(entry.key):
-            self._add_entry(type_, entry)
+        self._resolver.resolve_base_types(entry.key)
+        self._add_entry(entry.key, entry)
 
     def get(self, key: Key, variance: VarianceType = COVARIANT) -> Sequence[E]:
         match variance:
             case "invariant":
                 entries: Iterable[E] = tuple(self._get_entries(key))
             case "covariant":
+                a = self._resolver.resolve_sub_types(key)
                 entries = tuple(
                     itertools.chain.from_iterable(
-                        self._get_entries(k)
-                        for k in self._resolver.resolve_sub_types(key)
+                        self._get_entries(k) for k in a
                     )
                 )
             case "contravariant":
@@ -237,5 +249,4 @@ class TypedRegistry(Generic[E]):
         return entries
 
     def remove_entry(self, entry: E) -> None:
-        for type_ in self._resolver.resolve_base_types(entry.key):
-            self._remove_entry(type_, entry)
+        self._remove_entry(entry.key, entry)

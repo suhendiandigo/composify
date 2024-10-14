@@ -2,7 +2,6 @@
 
 import itertools
 from typing import (  # type: ignore[attr-defined]
-    Annotated,
     Generic,
     Protocol,
     TypeAlias,
@@ -12,6 +11,8 @@ from typing import (  # type: ignore[attr-defined]
     get_args,
     get_origin,
 )
+
+from composify._helper import get_type_info
 
 
 def _expand_union_args_combinations(type_):
@@ -73,7 +74,4 @@ AnnotatedType: TypeAlias = type[T] | _AnnotatedAlias
 
 def get_type(type_: AnnotatedType) -> type:
     """Get base type object."""
-    origin = get_origin(type_)
-    if origin is Annotated:
-        type_ = get_args(type_)[0]
-    return type_
+    return get_type_info(type_).inner_type
