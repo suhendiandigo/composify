@@ -111,10 +111,11 @@ class DefaultEntriesCollator(EntriesCollator[E]):
         insort(entries, entry, key=Entry.ordering)
 
 
-class _TypeResolver:
+class MemoizedTypeResolver:
     """We are tying the cached function to the object so it is cleared when the object is deleted."""
 
     def __init__(self):
+        super().__init__()
         self._sub_types = {}
         self._base_types = {}
 
@@ -143,7 +144,6 @@ class TypedRegistry(Generic[E]):
         "_entries",
         "_entries_filterer",
         "_entries_collator",
-        "_sub_types",
         "_resolver",
     )
 
@@ -155,17 +155,19 @@ class TypedRegistry(Generic[E]):
         *,
         entries_filterer: EntriesFilterer[E] | None = None,
         entries_collator: EntriesCollator[E] | None = None,
+        # Allows for sharing memoized type resolver.
+        type_resolver: MemoizedTypeResolver | None = None,
     ) -> None:
         self._entries = {}
         self._entries_filterer = entries_filterer or DefaultEntriesFilterer()
         self._entries_collator = entries_collator or DefaultEntriesCollator()
-        self._resolver = _TypeResolver()
-        self._sub_types = {}
+        self._resolver = type_resolver or MemoizedTypeResolver()
         if initial_entries is not None:
             self.add_entries(initial_entries)
 
-    def _resolve_sub_types(self, type_: type) -> Sequence[type]:
-        pass
+    @property
+    def type_memo(self) -> MemoizedTypeResolver:
+        return self._resolver
 
     def _collate_entries(self, entry: E, entries: list[E]) -> None:
         self._entries_collator.collate_entries(entry, entries)
