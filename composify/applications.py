@@ -321,7 +321,7 @@ class BaseComposify:
         # Core components
         self._default_resolution = default_resolution
         self._container = Container(name)
-        self._rules = RuleRegistry(allows_async=allows_async)
+        self._rules = RuleRegistry(supports_async=allows_async)
         self._resolver = BlueprintResolver(
             [
                 ContainerInstanceProvider(self._container),

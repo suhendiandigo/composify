@@ -50,6 +50,8 @@ def get_type_info(type_annotation: Any) -> TypeInfo:
             metadata.extend(args[1:])
             is_annotated = True
         else:
+            if inner_type == origin:
+                break
             generic = GenericInfo(origin, args)
             inner_type = origin
     return TypeInfo(

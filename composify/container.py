@@ -71,7 +71,7 @@ def _resolve_instance_name(value: Any):
     return resolve_type_name(value.__class__)
 
 
-class ContainerDefaultEntriesCollator(EntriesCollator[InstanceWrapper]):
+class ContainerDefaultEntriesCollator(EntriesCollator):
     """Validate using name and is_primary flag.."""
 
     def collate_entries(

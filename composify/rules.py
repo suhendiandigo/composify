@@ -16,9 +16,10 @@ Example:
 
 import asyncio
 import inspect
+import itertools
 from collections.abc import Awaitable, Callable, Iterable, Mapping
-from dataclasses import dataclass
-from functools import partial
+from dataclasses import dataclass, field
+from functools import partial, reduce
 from types import FrameType, ModuleType
 from typing import (
     Annotated,
@@ -30,12 +31,22 @@ from typing import (
     get_type_hints,
 )
 
-from composify._helper import ensure_type_annotation, resolve_type_name
+from composify._helper import (
+    GenericInfo,
+    TypeInfo,
+    ensure_type_annotation,
+    get_type_info,
+    resolve_type_name,
+)
 from composify._registry import (
+    DefaultEntriesCollator,
+    DefaultEntriesFilterer,
     EntriesCollator,
     EntriesFilterer,
     Entry,
+    FilteringContext,
     Key,
+    MemoizedTypeResolver,
     TypedRegistry,
 )
 from composify.errors import (
@@ -45,6 +56,7 @@ from composify.errors import (
 from composify.metadata import AttributeSet, collect_attributes
 from composify.metadata.qualifiers import BaseQualifierMetadata
 from composify.types import AnnotatedType
+from composify.variance import INVARIANT
 
 __all__ = ("rule", "as_rule")
 
@@ -76,6 +88,7 @@ class ConstructRule(Entry, Generic[T]):
     attributes: AttributeSet
     priority: int
     is_optional: bool
+    generic: GenericInfo | None
 
     @property
     def key(self) -> Key:
@@ -84,6 +97,10 @@ class ConstructRule(Entry, Generic[T]):
     @property
     def name(self) -> str:
         return self.canonical_name
+
+    @property
+    def is_generic(self):
+        return self.generic is not None
 
 
 class ConstructRuleSet(tuple[ConstructRule, ...]):
@@ -177,6 +194,7 @@ def _rule_decorator(
         parameter_types=parameter_types,
         priority=priority,
         is_optional=is_optional,
+        generic=return_type_info.generic,
     )
     attach_rule(decorated, rule)
     return decorated
@@ -307,14 +325,20 @@ class DuplicateRuleError(RuleError):
         )
 
 
-class AsyncRuleNotAllowedError(RuleError):
+class AsyncRuleNotSupportedError(RuleError):
     def __init__(self, rule: ConstructRule) -> None:
         self.rule = rule
-        super().__init__(f"Async rule is not allowed for registry: {rule!r}.")
+        super().__init__(f"Async rule is not supported for registry: {rule!r}.")
+
+
+class GenericRuleNotSupportedError(RuleError):
+    def __init__(self, rule: ConstructRule) -> None:
+        self.rule = rule
+        super().__init__(f"Generic rule is supported for registry: {rule!r}.")
 
 
 class RuleRegistry:
-    __slots__ = ("_rules", "_allows_async")
+    __slots__ = ("_rules", "_type_resolver", "_supports_async")
 
     _rules: TypedRegistry[ConstructRule]
 
@@ -322,20 +346,23 @@ class RuleRegistry:
         self,
         rules: Iterable[ConstructRule] | None = None,
         *,
-        attribute_filterer: EntriesFilterer | None = None,
+        entries_filterer: EntriesFilterer | None = None,
         entries_collator: EntriesCollator | None = None,
-        allows_async: bool = True,
+        type_resolver: MemoizedTypeResolver | None = None,
+        supports_async: bool = True,
     ) -> None:
+        self._type_resolver = type_resolver or MemoizedTypeResolver()
         self._rules = TypedRegistry(
             rules,
-            entries_filterer=attribute_filterer,
+            entries_filterer=entries_filterer,
             entries_collator=entries_collator,
+            type_resolver=self._type_resolver,
         )
-        self._allows_async = allows_async
+        self._supports_async = supports_async
 
     @property
-    def allows_async(self) -> bool:
-        return self._allows_async
+    def supports_async(self) -> bool:
+        return self._supports_async
 
     def _compare_entries(
         self, entry: ConstructRule, other: ConstructRule
@@ -343,8 +370,10 @@ class RuleRegistry:
         return entry == other
 
     def register_rule(self, rule: ConstructRule) -> None:
-        if rule.is_async and not self.allows_async:
-            raise AsyncRuleNotAllowedError(rule)
+        if rule.is_async and not self.supports_async:
+            raise AsyncRuleNotSupportedError(rule)
+        if rule.is_generic:
+            raise GenericRuleNotSupportedError(rule)
         self._rules.add_entry(rule)
 
     def register_rules(self, rules: Iterable[ConstructRule]) -> None:
@@ -352,4 +381,173 @@ class RuleRegistry:
             self.register_rule(rule)
 
     def get(self, target: AnnotatedType[T]) -> Iterable[ConstructRule[T]]:
+        return self._rules.get(target)
+
+
+@dataclass(frozen=True)
+class GenericRuleEntry(Entry, Generic[T]):
+    entry_name: str
+    parameter_type: type
+    registry: TypedRegistry["GenericRuleEntry"] | None = field(compare=False)
+    rule: ConstructRule | None
+    attributes: AttributeSet
+    priority: int = field(compare=False)
+
+    @property
+    def key(self) -> Key:
+        return self.parameter_type
+
+    @property
+    def name(self) -> str:
+        return self.entry_name
+
+
+class _GenericRuleRegistry:
+    _rules: TypedRegistry[GenericRuleEntry]
+
+    def __init__(
+        self,
+        rules: Iterable[ConstructRule] | None = None,
+        *,
+        entries_filterer: EntriesFilterer | None = None,
+        entries_collator: EntriesCollator | None = None,
+        type_resolver: MemoizedTypeResolver | None = None,
+    ):
+        self._type_resolver = type_resolver or MemoizedTypeResolver()
+        self._entries_filterer = entries_filterer or DefaultEntriesFilterer()
+        self._entries_collator = entries_collator or DefaultEntriesCollator()
+        self._rules = self._create_registry()
+        if rules:
+            for rule in rules:
+                self.add_rule(rule)
+
+    def _create_registry(self) -> TypedRegistry[GenericRuleEntry]:
+        return TypedRegistry(
+            None,
+            entries_filterer=self._entries_filterer,
+            entries_collator=self._entries_collator,
+            type_resolver=self._type_resolver,
+        )
+
+    def add_rule(self, rule: ConstructRule) -> None:
+        if not rule.is_generic:
+            raise ValueError(f"{rule!r} is not a generic rule")
+
+        args = (rule.output_type, *rule.generic.args)
+        current_rules = {self._rules}
+        next_rules = []
+        last_idx = len(args) - 1
+        for i, arg in enumerate(args):
+            if i == last_idx:
+                entry = GenericRuleEntry(
+                    entry_name=f"generic_{rule.output_type.__module__}.{rule.output_type.__name__}_arg_{i}_{arg.__module__}.{arg.__name__}",
+                    parameter_type=arg,
+                    registry=None,
+                    rule=rule,
+                    attributes=collect_attributes(arg),
+                    priority=rule.priority,
+                )
+                for rules_ in current_rules:
+                    rules_.add_entry(entry)
+            else:
+                context = FilteringContext.from_type(arg)
+                for rules_ in current_rules:
+                    entries = self._entries_filterer.filter_entries(
+                        rules_.get(arg, INVARIANT), context
+                    )
+                    if entries:
+                        next_rules.extend(entry.registry for entry in entries)
+                    else:
+                        entry = GenericRuleEntry(
+                            entry_name=f"generic_{arg.__module__}.{arg.__name__}"
+                            if i == 0
+                            else f"generic_{rule.output_type.__module__}.{rule.output_type.__name__}_arg_{i}_{arg.__module__}.{arg.__name__}",
+                            parameter_type=arg,
+                            registry=self._create_registry(),
+                            rule=None,
+                            attributes=collect_attributes(arg),
+                            priority=rule.priority,
+                        )
+                        next_rules.append(entry.registry)
+                        rules_.add_entry(entry)
+            current_rules = next_rules
+            next_rules = []
+
+    def get(self, target: TypeInfo) -> Iterable[ConstructRule[T]]:
+        args = (target.inner_type, *target.generic.args)
+        current_rules = [self._rules]
+        next_rules = []
+        last_idx = len(args) - 1
+        for i, arg in enumerate(args):
+            context = FilteringContext.from_type(arg)
+            entries = tuple(
+                itertools.chain.from_iterable(
+                    self._entries_filterer.filter_entries(
+                        r.get(arg, INVARIANT), context
+                    )
+                    for r in current_rules
+                )
+            )
+            if not entries:
+                break
+            if i == last_idx:
+                for entry in entries:
+                    if entry.rule is not None:
+                        yield entry.rule
+            else:
+                for entry in entries:
+                    next_rules.append(entry.registry)
+            current_rules = next_rules
+            next_rules = []
+
+
+def partition(iterable, key):
+    return reduce(lambda x, y: x[not key(y)].append(y) or x, iterable, ([], []))
+
+
+class SupportsGenericRuleRegistry(RuleRegistry):
+    __slots__ = ("_generic_rules",)
+
+    _rules: TypedRegistry[ConstructRule]
+    _generic_rules: _GenericRuleRegistry
+
+    def __init__(
+        self,
+        rules: Iterable[ConstructRule] | None = None,
+        *,
+        entries_filterer: EntriesFilterer | None = None,
+        entries_collator: EntriesCollator | None = None,
+        type_resolver: MemoizedTypeResolver | None = None,
+        supports_async: bool = True,
+    ) -> None:
+        self._type_resolver = type_resolver or MemoizedTypeResolver()
+        generic_rules, non_generic_rules = partition(
+            rules, key=lambda x: x.is_generic
+        )
+        super().__init__(
+            non_generic_rules,
+            entries_filterer=entries_filterer,
+            entries_collator=entries_collator,
+            type_resolver=self._type_resolver,
+            supports_async=supports_async,
+        )
+        self._generic_rules = _GenericRuleRegistry(
+            generic_rules,
+            entries_filterer=entries_filterer,
+            entries_collator=entries_collator,
+            type_resolver=self._type_resolver,
+        )
+
+    def register_rule(self, rule: ConstructRule) -> None:
+        if rule.is_async and not self.supports_async:
+            raise AsyncRuleNotSupportedError(rule)
+        if rule.is_generic:
+            self._generic_rules.add_rule(rule)
+        else:
+            self._rules.add_entry(rule)
+
+    def get(self, target: AnnotatedType[T]) -> Iterable[ConstructRule[T]]:
+        type_info = get_type_info(target)
+        if type_info.is_generic:
+            return self._generic_rules.get(type_info)
         return self._rules.get(target)

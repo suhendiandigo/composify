@@ -14,7 +14,7 @@ from composify.provider import (
     Static,
 )
 from composify.resolutions import EXHAUSTIVE
-from composify.rules import ConstructRule, RuleRegistry, as_rule
+from composify.rules import ConstructRule, SupportsGenericRuleRegistry, as_rule
 
 
 def create_resolver(
@@ -27,7 +27,7 @@ def create_resolver(
 
 def create_rule_provider(*rules: ConstructRule):
     return RuleBasedConstructorProvider(
-        RuleRegistry(as_rule(rule) for rule in rules),
+        SupportsGenericRuleRegistry(as_rule(rule) for rule in rules),
     )
 
 

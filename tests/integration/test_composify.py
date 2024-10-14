@@ -5,7 +5,7 @@ import pytest
 from composify import AsyncComposify, Composify, rule
 from composify.errors import MultipleResolutionError
 from composify.resolutions import EXHAUSTIVE, SELECT_FIRST
-from composify.rules import AsyncRuleNotAllowedError
+from composify.rules import AsyncRuleNotSupportedError
 
 
 @dataclass
@@ -128,5 +128,5 @@ async def test_async_first_resolution():
 def test_sync_build_on_async():
     composify = Composify()
 
-    with pytest.raises(AsyncRuleNotAllowedError):
+    with pytest.raises(AsyncRuleNotSupportedError):
         composify.add_rule(async_create_value)
